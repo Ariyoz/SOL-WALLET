@@ -219,9 +219,18 @@ async function apiPost(path, body) {
 // ─ API — direct Solana RPC, no backend required ──────────────────────────────
 
 async function getBalance(address) {
-  const conn = getConn();
-  const lamports = await conn.getBalance(new w3.PublicKey(address), 'confirmed');
-  return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
+  // Use Render backend as CORS proxy — direct RPC blocked by browsers
+  try {
+    const r = await fetch(`${API}/wallet/balance/${address}`, {signal: AbortSignal.timeout(12000)});
+    if (!r.ok) throw new Error('backend error');
+    const d = await r.json();
+    return { balance_sol: d.balance_sol || 0, balance_lamports: d.balance_lamports || 0 };
+  } catch (_) {
+    // Fallback: direct RPC (works on some networks/browsers)
+    const conn = getConn();
+    const lamports = await conn.getBalance(new w3.PublicKey(address), 'confirmed');
+    return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
+  }
 }
 
 async function estimateFee(from, to, amountSol) {
@@ -242,37 +251,58 @@ async function estimateFee(from, to, amountSol) {
 }
 
 async function broadcastTx(b64) {
-  const conn = getConn();
-  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-  const sig = await conn.sendRawTransaction(bytes, {skipPreflight:false, preflightCommitment:'confirmed'});
-  await conn.confirmTransaction(sig, 'confirmed');
-  const { network } = loadNet();
-  return {
-    signature: sig,
-    explorer_url: `https://solscan.io/tx/${sig}${network==='mainnet-beta'?'':'?cluster='+network}`,
-  };
+  // Try backend first (handles broadcast + stores tx history)
+  try {
+    const r = await fetch(`${API}/transaction/send`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({signed_transaction_base64: b64}),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (!r.ok) throw new Error('backend error');
+    return await r.json();
+  } catch (_) {
+    // Fallback: direct RPC
+    const conn = getConn();
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    const sig = await conn.sendRawTransaction(bytes, {skipPreflight:false, preflightCommitment:'confirmed'});
+    await conn.confirmTransaction(sig, 'confirmed');
+    const { network } = loadNet();
+    return {
+      signature: sig,
+      explorer_url: `https://solscan.io/tx/${sig}${network==='mainnet-beta'?'':'?cluster='+network}`,
+    };
+  }
 }
 
 async function getTxHistory(address, limit, offset) {
+  // Try backend first
   try {
-    const conn = getConn();
-    const sigs = await conn.getSignaturesForAddress(new w3.PublicKey(address), { limit: limit + offset });
-    const slice = sigs.slice(offset, offset + limit);
-    const { network } = loadNet();
-    return {
-      transactions: slice.map(s => ({
-        signature: s.signature,
-        direction: 'sent',
-        amount_sol: '—',
-        fee_sol: '0.000005',
-        block_time: s.blockTime,
-        status: s.err ? 'failed' : 'confirmed',
-        counterparty_address: '',
-        explorer_url: `https://solscan.io/tx/${s.signature}${network==='mainnet-beta'?'':'?cluster='+network}`,
-      })),
-      count: slice.length,
-    };
-  } catch(_) { return { transactions: [], count: 0 }; }
+    const r = await fetch(`${API}/wallet/transactions/${address}?limit=${limit}&offset=${offset}`, {signal: AbortSignal.timeout(12000)});
+    if (!r.ok) throw new Error('backend error');
+    return await r.json();
+  } catch (_) {
+    // Fallback: direct RPC
+    try {
+      const conn = getConn();
+      const sigs = await conn.getSignaturesForAddress(new w3.PublicKey(address), { limit: limit + offset });
+      const slice = sigs.slice(offset, offset + limit);
+      const { network } = loadNet();
+      return {
+        transactions: slice.map(s => ({
+          signature: s.signature,
+          direction: 'sent',
+          amount_sol: '—',
+          fee_sol: '0.000005',
+          block_time: s.blockTime,
+          status: s.err ? 'failed' : 'confirmed',
+          counterparty_address: '',
+          explorer_url: `https://solscan.io/tx/${s.signature}${network==='mainnet-beta'?'':'?cluster='+network}`,
+        })),
+        count: slice.length,
+      };
+    } catch(_) { return { transactions: [], count: 0 }; }
+  }
 }
 
 const getQrCode = () => Promise.resolve(null);
@@ -661,9 +691,17 @@ async function refreshHome() {
 
     renderRecentTxs(addr);
   } catch(e) {
-    txt('bal-main','—'); txt('bal-cents',''); txt('change-text','Error');
-    if (e.message.includes('Failed to fetch')||e.message.includes('Load failed')) {
-      toast('Start backend: .\\start-wallet.ps1','error',7000);
+    txt('bal-main','—'); txt('bal-cents',''); 
+    const pill = g('change-pill');
+    if(pill) { pill.style.color='var(--red)'; pill.style.borderColor='rgba(240,81,110,.2)'; pill.style.background='rgba(240,81,110,.06)'; }
+    txt('change-text', 'Error — check console');
+    console.error('refreshHome error:', e.message, e);
+    if (e.message?.includes('403') || e.message?.includes('Access forbidden')) {
+      toast('RPC blocked — update Render env to mainnet', 'error', 8000);
+    } else if (e.message?.includes('Failed to fetch') || e.message?.includes('Load failed')) {
+      toast('Backend offline — start .\\start-wallet.ps1', 'error', 7000);
+    } else {
+      toast('Error: ' + e.message, 'error', 6000);
     }
   }
 }
