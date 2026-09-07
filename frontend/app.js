@@ -8,8 +8,8 @@
  */
 'use strict';
 
-const API        = 'https://solana-wallet-api.onrender.com'; // optional backend
-const BACKEND_OK  = false; // set true once Render is live
+const API        = 'https://sol-wallet-1.onrender.com'; // Render backend
+const BACKEND_OK  = true; // backend is live
 const STOR       = { kp:'sw_kp', rpc:'sw_rpc', net:'sw_net' };
 const HIST_LIMIT = 20;
 
