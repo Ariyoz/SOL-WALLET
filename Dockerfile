@@ -2,8 +2,8 @@
 # Use latest stable Rust — edition2024 requires 1.85+
 FROM rust:latest AS builder
 
-# Cache bust — increment this to force a full rebuild on Render
-ARG CACHE_BUST=3
+# Cache bust — increment to force full rebuild
+ARG CACHE_BUST=4
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
