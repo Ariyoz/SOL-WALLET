@@ -22,6 +22,8 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         // Health
         .route("/health", get(handlers::health))
+        // Blockhash
+        .route("/blockhash", get(handlers::get_blockhash))
         // Wallet
         .route("/wallet/balance/:address", get(handlers::get_balance))
         .route("/wallet/transactions/:address", get(handlers::get_wallet_transactions))

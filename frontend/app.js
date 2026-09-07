@@ -284,26 +284,13 @@ async function estimateFee(from, to, amountSol) {
 }
 
 async function broadcastTx(b64) {
-  // Try backend first (handles broadcast + stores tx history)
-  try {
-    const r = await fetch(`${API}/transaction/send`, {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({signed_transaction_base64: b64}),
-      signal: AbortSignal.timeout(20000),
-    });
-    if (!r.ok) throw new Error('backend error');
-    return await r.json();
-  } catch (_) {
-    // Fallback: raw fetch sendTransaction — avoids web3.js CORS issues
-    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const sig = await sendRawTxFetch(bytes);
-    const { network } = loadNet();
-    return {
-      signature: sig,
-      explorer_url: `https://solscan.io/tx/${sig}${network==='mainnet-beta'?'':'?cluster='+network}`,
-    };
-  }
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const sig = await sendRawTxFetch(bytes);
+  const { network } = loadNet();
+  return {
+    signature: sig,
+    explorer_url: `https://solscan.io/tx/${sig}${network==='mainnet-beta'?'':'?cluster='+network}`,
+  };
 }
 
 async function getTxHistory(address, limit, offset) {
@@ -410,28 +397,60 @@ async function getWorkingRpcUrl() {
   return rpcUrl;
 }
 
-/** Fetch the latest blockhash via raw fetch (bypasses web3.js CORS issues) */
+/** Fetch the latest blockhash — tries backend first, then raw RPC fetch */
 async function fetchLatestBlockhash() {
-  const rpcUrl = await getWorkingRpcUrl();
-  const r = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getLatestBlockhash', params:[{ commitment:'confirmed' }] }),
-    signal: AbortSignal.timeout(10000),
-  });
-  if (!r.ok) throw new Error(`RPC ${r.status}: ${r.statusText}`);
-  const j = await r.json();
-  if (j?.error) throw new Error(j.error.message || 'RPC error');
-  return {
-    blockhash: j.result.value.blockhash,
-    lastValidBlockHeight: j.result.value.lastValidBlockHeight,
-  };
+  // 1) Try Render backend (no CORS issues, always works)
+  try {
+    const r = await fetch(`${API}/blockhash`, { signal: AbortSignal.timeout(12000) });
+    if (r.ok) {
+      const d = await r.json();
+      if (d?.blockhash) return { blockhash: d.blockhash, lastValidBlockHeight: d.lastValidBlockHeight };
+    }
+  } catch (_) { /* fall through */ }
+
+  // 2) Raw fetch to CORS-friendly RPC endpoints
+  const { rpcUrl } = loadNet();
+  const candidates = [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a) => a.indexOf(v) === i);
+  for (const rpc of candidates) {
+    try {
+      const r = await fetch(rpc, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getLatestBlockhash', params:[{ commitment:'confirmed' }] }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (j?.error || !j?.result?.value?.blockhash) continue;
+      return {
+        blockhash: j.result.value.blockhash,
+        lastValidBlockHeight: j.result.value.lastValidBlockHeight,
+      };
+    } catch (_) { /* try next */ }
+  }
+  throw new Error('Could not fetch blockhash from any endpoint');
 }
 
-/** Send a raw signed transaction via raw fetch */
+/** Send a raw signed transaction — tries backend first, then raw RPC fetch */
 async function sendRawTxFetch(serializedBytes) {
-  const rpcUrl = await getWorkingRpcUrl();
   const b64 = btoa(String.fromCharCode(...serializedBytes));
+
+  // 1) Try Render backend
+  try {
+    const r = await fetch(`${API}/transaction/send`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ signed_transaction_base64: b64 }),
+      signal: AbortSignal.timeout(20000),
+    });
+    if (r.ok) {
+      const d = await r.json();
+      if (d?.signature) return d.signature;
+    }
+  } catch (_) { /* fall through */ }
+
+  // 2) Raw RPC fallback
+  const rpcUrl = await getWorkingRpcUrl();
   const r = await fetch(rpcUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

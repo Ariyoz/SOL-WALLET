@@ -31,6 +31,25 @@ use wallet_core::{
 use crate::{error::ApiError, state::AppState};
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  GET /blockhash
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub async fn get_blockhash(
+    State(state): State<AppState>,
+) -> Result<Json<Value>, ApiError> {
+    let (blockhash, last_valid_block_height) = state
+        .rpc_client
+        .get_latest_blockhash_with_commitment(CommitmentConfig::confirmed())
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch blockhash: {e}")))?;
+
+    Ok(Json(json!({
+        "blockhash": blockhash.to_string(),
+        "lastValidBlockHeight": last_valid_block_height,
+    })))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  GET /health
 // ─────────────────────────────────────────────────────────────────────────────
 
