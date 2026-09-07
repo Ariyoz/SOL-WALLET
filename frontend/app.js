@@ -199,7 +199,7 @@ async function copy(text, label='Copied') {
   toast(`${label} ✓`, 'success');
 }
 
-// ─ Backend API (all RPC proxied — no CORS) ──────────────────────────────────
+// ─ Backend API helpers (kept for future use) ─────────────────────────────────
 async function apiGet(path) {
   const r = await fetch(API+path, {signal:AbortSignal.timeout(10000)});
   const d = await r.json();
@@ -233,65 +233,54 @@ async function apiPost(path, body) {
   return d;
 }
 
-// ─ API functions — use backend when live, direct RPC as fallback ─────────────
+// ─ API functions — direct RPC (backend as optional enhancement) ──────────────
 
+/** SOL balance via direct RPC */
 async function getBalance(address) {
-  try {
-    return await apiGet(`/wallet/balance/${address}`);
-  } catch(_) {
-    // fallback: direct RPC
-    const conn = getConn();
-    const lamports = await conn.getBalance(new w3.PublicKey(address), 'confirmed');
-    return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
-  }
+  const conn = getConn();
+  const lamports = await conn.getBalance(new w3.PublicKey(address), 'confirmed');
+  return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
 }
 
+/** Fee estimate — fixed 0.000005 SOL, no backend needed */
 async function estimateFee(from, to, amountSol) {
-  try {
-    return await apiPost('/transaction/estimate', {from_address:from, to_address:to, amount_sol:amountSol});
-  } catch(_) {
-    const bal = await getBalance(from);
-    const amount = parseFloat(amountSol);
-    const fee = 0.000005;
-    const total = amount + fee;
-    const sufficient = bal.balance_sol >= total;
-    return {
-      amount_sol: amountSol,
-      network_fee_sol: fee.toFixed(6),
-      network_fee_usd: S.price ? `$${(fee * S.price).toFixed(4)}` : '',
-      total_sol: total.toFixed(9).replace(/\.?0+$/,''),
-      sender_balance_sol: bal.balance_sol.toFixed(6),
-      sufficient_funds: sufficient,
-      insufficient_funds_message: sufficient ? '' : `Need ${total.toFixed(6)} SOL, have ${bal.balance_sol.toFixed(6)} SOL`,
-    };
-  }
+  const bal = await getBalance(from);
+  const amount = parseFloat(amountSol);
+  const fee = 0.000005;
+  const total = amount + fee;
+  const sufficient = bal.balance_sol >= total;
+  return {
+    amount_sol: amountSol,
+    network_fee_sol: fee.toFixed(6),
+    network_fee_usd: S.price ? `$${(fee * S.price).toFixed(4)}` : '',
+    total_sol: total.toFixed(9).replace(/\.?0+$/,''),
+    sender_balance_sol: bal.balance_sol.toFixed(6),
+    sufficient_funds: sufficient,
+    insufficient_funds_message: sufficient ? '' : `Need ${total.toFixed(6)} SOL, have ${bal.balance_sol.toFixed(6)} SOL`,
+  };
 }
 
+/** Broadcast signed tx via direct RPC */
 async function broadcastTx(b64) {
-  try {
-    return await apiPost('/transaction/send', {signed_transaction_base64: b64});
-  } catch(_) {
-    // fallback: direct RPC
-    const conn = getConn();
-    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const sig = await conn.sendRawTransaction(bytes, {skipPreflight:false, preflightCommitment:'confirmed'});
-    await conn.confirmTransaction(sig, 'confirmed');
-    const { network } = loadNet();
-    return {
-      signature: sig,
-      explorer_url: `https://solscan.io/tx/${sig}${network==='mainnet-beta'?'':'?cluster='+network}`,
-    };
-  }
+  const conn = getConn();
+  const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+  const sig = await conn.sendRawTransaction(bytes, {
+    skipPreflight: false, preflightCommitment: 'confirmed',
+  });
+  await conn.confirmTransaction(sig, 'confirmed');
+  const { network } = loadNet();
+  return {
+    signature: sig,
+    explorer_url: `https://solscan.io/tx/${sig}${network==='mainnet-beta'?'':'?cluster='+network}`,
+  };
 }
 
+/** Transaction history via direct RPC */
 async function getTxHistory(address, limit, offset) {
   try {
-    return await apiGet(`/wallet/transactions/${address}?limit=${limit}&offset=${offset}`);
-  } catch(_) {
-    // fallback: direct RPC
     const conn = getConn();
     const pubkey = new w3.PublicKey(address);
-    const sigs = await conn.getSignaturesForAddress(pubkey, { limit: limit + offset });
+    const sigs = await conn.getSignaturesForAddress(pubkey, { limit: Math.min(limit + offset, 50) });
     const slice = sigs.slice(offset, offset + limit);
     const { network } = loadNet();
     return {
@@ -307,8 +296,13 @@ async function getTxHistory(address, limit, offset) {
       })),
       count: slice.length,
     };
+  } catch(_) {
+    return { transactions: [], count: 0 };
   }
 }
+
+/** QR code — local canvas fallback */
+const getQrCode = () => Promise.resolve(null);}
 
 const getQrCode = a => apiGet(`/wallet/qr/${a}`).catch(()=>null);
 
