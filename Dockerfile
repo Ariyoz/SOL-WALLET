@@ -1,7 +1,11 @@
 # ── Stage 1: Build ──────────────────────────────────────────────────────────
-FROM rust:1.85-slim AS builder
+# Use latest stable Rust — edition2024 requires 1.85+
+FROM rust:latest AS builder
 
-# Install system dependencies needed for Solana crates
+# Cache bust — increment this to force a full rebuild on Render
+ARG CACHE_BUST=3
+
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     pkg-config \
     libssl-dev \
@@ -11,17 +15,12 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy workspace manifests
+# Copy everything needed for the build
 COPY Cargo.toml ./
-
-# Copy Cargo.lock if it exists (optional — Docker will skip if missing)
-COPY Cargo.loc[k] ./
-
-# Copy source
 COPY crates/ crates/
 COPY patches/ patches/
 
-# Build release binary
+# Build — without --locked so Cargo resolves fresh compatible versions
 RUN cargo build --release --bin api
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
@@ -35,13 +34,9 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy compiled binary
 COPY --from=builder /app/target/release/api ./api
-
-# Copy migrations
 COPY crates/storage/migrations/ ./migrations/
 
-# Render injects PORT — we read it in main.rs via $PORT
 ENV API_HOST=0.0.0.0
 ENV RUST_LOG=info
 ENV DATABASE_URL=sqlite:./wallet.db
