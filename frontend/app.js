@@ -10,6 +10,13 @@
 
 const API        = 'https://sol-wallet-1.onrender.com'; // Render backend
 const BACKEND_OK  = true; // backend is live
+
+// Public CORS-friendly RPC endpoints (tried in order on fallback)
+const FALLBACK_RPCS = [
+  'https://rpc.ankr.com/solana',
+  'https://solana-mainnet.g.alchemy.com/v2/demo',
+  'https://api.mainnet-beta.solana.com',
+];
 const STOR       = { kp:'sw_kp', rpc:'sw_rpc', net:'sw_net' };
 const HIST_LIMIT = 20;
 
@@ -219,18 +226,44 @@ async function apiPost(path, body) {
 // ─ API — direct Solana RPC, no backend required ──────────────────────────────
 
 async function getBalance(address) {
-  // Use Render backend as CORS proxy — direct RPC blocked by browsers
+  // 1) Try the Render backend first (also handles CORS proxy for RPC)
   try {
-    const r = await fetch(`${API}/wallet/balance/${address}`, {signal: AbortSignal.timeout(12000)});
+    const r = await fetch(`${API}/wallet/balance/${address}`, {signal: AbortSignal.timeout(15000)});
     if (!r.ok) throw new Error('backend error');
     const d = await r.json();
     return { balance_sol: d.balance_sol || 0, balance_lamports: d.balance_lamports || 0 };
-  } catch (_) {
-    // Fallback: direct RPC (works on some networks/browsers)
+  } catch (_) { /* fall through */ }
+
+  // 2) Try direct JSON-RPC POST to CORS-friendly public endpoints
+  const { rpcUrl } = loadNet();
+  const endpointsToTry = [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a)=>a.indexOf(v)===i);
+  for (const rpc of endpointsToTry) {
+    try {
+      const r = await fetch(rpc, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'getBalance',
+          params: [address, { commitment: 'confirmed' }]
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!r.ok) continue;
+      const json = await r.json();
+      const lamports = json?.result?.value ?? 0;
+      return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
+    } catch (_) { /* try next */ }
+  }
+
+  // 3) Last resort: web3.js Connection (may fail on some hosts due to CORS)
+  try {
     const conn = getConn();
     const lamports = await conn.getBalance(new w3.PublicKey(address), 'confirmed');
     return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
-  }
+  } catch (_) { /* give up */ }
+
+  // All failed — return 0 so the UI shows $0 instead of crashing
+  return { balance_sol: 0, balance_lamports: 0, _error: true };
 }
 
 async function estimateFee(from, to, amountSol) {
@@ -415,9 +448,42 @@ function getATA(walletPubkey, mintAddress) {
 
 /** Fetch SPL token balance. Returns { uiAmount: number } or null */
 async function getSplBalance(walletPubkey, mintAddress) {
+  const ata = getATA(walletPubkey, mintAddress);
+  const ataStr = ata.toString();
+
+  // 1) Try via Render backend (CORS-safe)
+  try {
+    const r = await fetch(`${API}/wallet/token-balance/${walletPubkey.toString()}/${mintAddress}`,
+      { signal: AbortSignal.timeout(10000) });
+    if (r.ok) {
+      const d = await r.json();
+      if (d?.uiAmount !== undefined) return { uiAmount: d.uiAmount };
+    }
+  } catch (_) { /* fall through */ }
+
+  // 2) Direct JSON-RPC to CORS-friendly endpoints
+  const { rpcUrl } = loadNet();
+  const endpointsToTry = [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a)=>a.indexOf(v)===i);
+  for (const rpc of endpointsToTry) {
+    try {
+      const r = await fetch(rpc, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1, method: 'getTokenAccountBalance',
+          params: [ataStr, { commitment: 'confirmed' }]
+        }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!r.ok) continue;
+      const json = await r.json();
+      if (json?.result?.value) return json.result.value;
+    } catch (_) { /* try next */ }
+  }
+
+  // 3) web3.js fallback
   try {
     const conn = getConn();
-    const ata  = getATA(walletPubkey, mintAddress);
     const info = await conn.getTokenAccountBalance(ata, 'confirmed');
     return info.value;
   } catch (_) {
@@ -647,44 +713,55 @@ async function refreshHome() {
   try {
     const [balRes, mktData] = await Promise.all([getBalance(addr), fetchMarketData()]);
     S.solBal = balRes.balance_sol || 0;
+    const rpcFailed = balRes._error === true;
 
     const solMkt = mktData.find(c=>c.id==='solana');
     if (solMkt) S.price = solMkt.current_price;
 
-    if (S.price !== null) {
-      const usd = S.solBal * S.price;
-      const [d,c] = usd.toFixed(2).split('.');
-      txt('bal-main',  Number(d).toLocaleString());
-      txt('bal-cents', '.'+c);
+    if (rpcFailed) {
+      // All RPCs failed — show retry state, don't show $0 as if balance is zero
+      txt('bal-main', '—'); txt('bal-cents', '');
+      txt('bal-sol-row', '— SOL');
+      const pill = g('change-pill');
+      if(pill) { pill.style.color='var(--red)'; pill.style.borderColor='rgba(240,81,110,.2)'; pill.style.background='rgba(240,81,110,.06)'; }
+      txt('change-text', 'Tap to retry');
+      toast('Could not reach Solana network — tap refresh', 'error', 6000);
     } else {
-      txt('bal-main', S.solBal.toFixed(4));
-      txt('bal-cents','');
-    }
+      if (S.price !== null) {
+        const usd = S.solBal * S.price;
+        const [d,c] = usd.toFixed(2).split('.');
+        txt('bal-main',  Number(d).toLocaleString());
+        txt('bal-cents', '.'+c);
+      } else {
+        txt('bal-main', S.solBal.toFixed(4));
+        txt('bal-cents','');
+      }
 
-    txt('bal-sol-row', `${S.solBal.toFixed(6)} SOL`);
-    updateNetBadge();
+      txt('bal-sol-row', `${S.solBal.toFixed(6)} SOL`);
+      updateNetBadge();
 
-    if (solMkt) {
-      const chg = solMkt.price_change_percentage_24h || 0;
-      const arrow = chg>=0 ? '▲' : '▼';
-      const sign  = chg>=0 ? '+' : '';
-      const pill  = g('change-pill');
-      pill.style.color       = chg>=0 ? 'var(--grn)' : 'var(--red)';
-      pill.style.borderColor = chg>=0 ? 'rgba(20,241,149,.2)' : 'rgba(240,81,110,.2)';
-      pill.style.background  = chg>=0 ? 'rgba(20,241,149,.08)' : 'rgba(240,81,110,.06)';
-      txt('change-text', `${arrow} $${solMkt.current_price.toFixed(2)} · ${sign}${chg.toFixed(2)}%`);
-    } else {
-      txt('change-text','Live');
-    }
+      if (solMkt) {
+        const chg = solMkt.price_change_percentage_24h || 0;
+        const arrow = chg>=0 ? '▲' : '▼';
+        const sign  = chg>=0 ? '+' : '';
+        const pill  = g('change-pill');
+        pill.style.color       = chg>=0 ? 'var(--grn)' : 'var(--red)';
+        pill.style.borderColor = chg>=0 ? 'rgba(20,241,149,.2)' : 'rgba(240,81,110,.2)';
+        pill.style.background  = chg>=0 ? 'rgba(20,241,149,.08)' : 'rgba(240,81,110,.06)';
+        txt('change-text', `${arrow} $${solMkt.current_price.toFixed(2)} · ${sign}${chg.toFixed(2)}%`);
+      } else {
+        txt('change-text','Live');
+      }
 
-    txt('ar-sol-sub', `${S.solBal.toFixed(6)} SOL`);
-    if (S.price !== null) txt('ar-sol-usd', `$${(S.solBal*S.price).toFixed(2)}`);
-    if (solMkt) {
-      const c=solMkt.price_change_percentage_24h||0;
-      const el = g('ar-sol-chg');
-      el.textContent=`${c>=0?'+':''}${c.toFixed(2)}%`;
-      el.className=`ar-chg ${c>=0?'pos':'neg'}`;
-    }
+      txt('ar-sol-sub', `${S.solBal.toFixed(6)} SOL`);
+      if (S.price !== null) txt('ar-sol-usd', `$${(S.solBal*S.price).toFixed(2)}`);
+      if (solMkt) {
+        const c=solMkt.price_change_percentage_24h||0;
+        const el = g('ar-sol-chg');
+        el.textContent=`${c>=0?'+':''}${c.toFixed(2)}%`;
+        el.className=`ar-chg ${c>=0?'pos':'neg'}`;
+      }
+    } // end else (!rpcFailed)
 
     // Load SPL token balances (non-blocking)
     loadSplBalances(S.kp.publicKey).catch(()=>{});
@@ -694,14 +771,16 @@ async function refreshHome() {
     txt('bal-main','—'); txt('bal-cents',''); 
     const pill = g('change-pill');
     if(pill) { pill.style.color='var(--red)'; pill.style.borderColor='rgba(240,81,110,.2)'; pill.style.background='rgba(240,81,110,.06)'; }
-    txt('change-text', 'Error — check console');
+    txt('change-text', 'Tap to retry');
     console.error('refreshHome error:', e.message, e);
     if (e.message?.includes('403') || e.message?.includes('Access forbidden')) {
-      toast('RPC blocked — update Render env to mainnet', 'error', 8000);
-    } else if (e.message?.includes('Failed to fetch') || e.message?.includes('Load failed')) {
-      toast('Backend offline — start .\\start-wallet.ps1', 'error', 7000);
+      toast('RPC access denied — try switching to a different network', 'error', 8000);
+    } else if (e.message?.includes('Failed to fetch') || e.message?.includes('Load failed') || e.message?.includes('NetworkError')) {
+      toast('Network error — tap refresh to try again', 'error', 7000);
+    } else if (e.message?.includes('all RPC endpoints failed')) {
+      toast('All RPC endpoints unavailable — tap refresh to retry', 'error', 7000);
     } else {
-      toast('Error: ' + e.message, 'error', 6000);
+      toast('Balance fetch failed — tap refresh', 'error', 6000);
     }
   }
 }
