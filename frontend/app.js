@@ -295,11 +295,9 @@ async function broadcastTx(b64) {
     if (!r.ok) throw new Error('backend error');
     return await r.json();
   } catch (_) {
-    // Fallback: direct RPC
-    const conn = await getWorkingConn();
+    // Fallback: raw fetch sendTransaction — avoids web3.js CORS issues
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    const sig = await conn.sendRawTransaction(bytes, {skipPreflight:false, preflightCommitment:'confirmed'});
-    await conn.confirmTransaction(sig, 'confirmed');
+    const sig = await sendRawTxFetch(bytes);
     const { network } = loadNet();
     return {
       signature: sig,
@@ -315,10 +313,18 @@ async function getTxHistory(address, limit, offset) {
     if (!r.ok) throw new Error('backend error');
     return await r.json();
   } catch (_) {
-    // Fallback: direct RPC
+    // Fallback: direct JSON-RPC fetch
     try {
-      const conn = await getWorkingConn();
-      const sigs = await conn.getSignaturesForAddress(new w3.PublicKey(address), { limit: limit + offset });
+      const rpcUrl = await getWorkingRpcUrl();
+      const r = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getSignaturesForAddress',
+          params:[address, { limit: limit + offset }] }),
+        signal: AbortSignal.timeout(12000),
+      });
+      const j = await r.json();
+      const sigs = j?.result || [];
       const slice = sigs.slice(offset, offset + limit);
       const { network } = loadNet();
       return {
@@ -375,47 +381,76 @@ function loadKp() {
 }
 
 // ─ Connection helper ─────────────────────────────────────────────────────────
-// Returns a working Connection by probing CORS-friendly endpoints.
-// Caches the first one that responds to getLatestBlockhash without a 403.
-async function getWorkingConn() {
-  // If we already have a verified working connection, reuse it
-  if (S.conn && S.connVerified) return S.conn;
+
+/** Get the first CORS-friendly RPC URL that responds successfully */
+async function getWorkingRpcUrl() {
+  if (S.workingRpc) return S.workingRpc;
 
   const { rpcUrl, network } = loadNet();
-  // Build endpoint list: user's RPC first, then CORS-friendly fallbacks
-  // For non-mainnet, only try the user's configured endpoint
   const candidates = network === 'mainnet-beta'
     ? [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a) => a.indexOf(v) === i)
     : [rpcUrl];
 
   for (const rpc of candidates) {
     try {
-      // Quick probe: raw fetch to check CORS + reachability
-      const probe = await fetch(rpc, {
+      const r = await fetch(rpc, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getLatestBlockhash', params:[{ commitment:'confirmed' }] }),
         signal: AbortSignal.timeout(8000),
       });
-      if (!probe.ok) continue;
-      const j = await probe.json();
-      if (j?.error || !j?.result) continue;
-      // This endpoint works — cache and return connection
-      S.conn = new w3.Connection(rpc, 'confirmed');
-      S.connVerified = true;
-      return S.conn;
+      if (!r.ok) continue;
+      const j = await r.json();
+      if (j?.error || !j?.result?.value?.blockhash) continue;
+      S.workingRpc = rpc;
+      return rpc;
     } catch (_) { /* try next */ }
   }
-
-  // Last resort — return connection to user's RPC even if it might fail
-  S.conn = new w3.Connection(rpcUrl, 'confirmed');
-  S.connVerified = false;
-  return S.conn;
+  // Nothing found — fall back to user's configured endpoint (may fail)
+  return rpcUrl;
 }
 
-// Sync fallback for places that just need a Connection object (non-critical)
+/** Fetch the latest blockhash via raw fetch (bypasses web3.js CORS issues) */
+async function fetchLatestBlockhash() {
+  const rpcUrl = await getWorkingRpcUrl();
+  const r = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getLatestBlockhash', params:[{ commitment:'confirmed' }] }),
+    signal: AbortSignal.timeout(10000),
+  });
+  if (!r.ok) throw new Error(`RPC ${r.status}: ${r.statusText}`);
+  const j = await r.json();
+  if (j?.error) throw new Error(j.error.message || 'RPC error');
+  return {
+    blockhash: j.result.value.blockhash,
+    lastValidBlockHeight: j.result.value.lastValidBlockHeight,
+  };
+}
+
+/** Send a raw signed transaction via raw fetch */
+async function sendRawTxFetch(serializedBytes) {
+  const rpcUrl = await getWorkingRpcUrl();
+  const b64 = btoa(String.fromCharCode(...serializedBytes));
+  const r = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      jsonrpc: '2.0', id: 1, method: 'sendTransaction',
+      params: [b64, { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]
+    }),
+    signal: AbortSignal.timeout(20000),
+  });
+  const j = await r.json();
+  if (j?.error) throw new Error(j.error.message || 'Send failed');
+  return j.result; // signature string
+}
+
+// Sync fallback for non-critical uses
 function getConn() {
-  if (!S.conn) S.conn = new w3.Connection(loadNet().rpcUrl, 'confirmed');
+  const { rpcUrl } = loadNet();
+  const rpc = S.workingRpc || rpcUrl;
+  if (!S.conn || S.conn._rpcEndpoint !== rpc) S.conn = new w3.Connection(rpc, 'confirmed');
   return S.conn;
 }
 
@@ -455,8 +490,8 @@ function keyToWallet(b58) {
 // ─ SOL Signing ───────────────────────────────────────────────────────────────
 async function signTransfer(to, lamps) {
   if (!S.kp) throw new Error('No wallet');
-  const conn = await getWorkingConn();
-  const {blockhash,lastValidBlockHeight} = await conn.getLatestBlockhash('confirmed');
+  // Use raw fetch for blockhash — avoids web3.js hitting forbidden RPC
+  const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
   const tx = new w3.Transaction();
   tx.add(w3.SystemProgram.transfer({fromPubkey:S.kp.publicKey,toPubkey:new w3.PublicKey(to),lamports:lamps}));
   tx.recentBlockhash=blockhash; tx.feePayer=S.kp.publicKey; tx.lastValidBlockHeight=lastValidBlockHeight;
@@ -568,8 +603,9 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   const rawAmount = parseSplUnits(String(amount), tk.decimals);
   if (rawAmount <= 0n) throw new Error('Amount must be greater than zero');
 
-  const conn = await getWorkingConn();
-  const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
+  // Use raw fetch for blockhash — avoids web3.js hitting forbidden RPC
+  const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
+  const rpcUrl = await getWorkingRpcUrl();
 
   const fromATA = getATA(fromPub, mintAddr);
   const toATA   = getATA(toPubkey, mintAddr);
@@ -579,9 +615,17 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   tx.feePayer             = fromPub;
   tx.lastValidBlockHeight = lastValidBlockHeight;
 
-  // Create destination ATA if it doesn't exist
-  const toATAInfo = await conn.getAccountInfo(toATA, 'confirmed');
-  if (!toATAInfo) {
+  // Check if destination ATA exists via raw fetch
+  const ataCheckResp = await fetch(rpcUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getAccountInfo', params:[toATA.toString(), { encoding:'base64' }] }),
+    signal: AbortSignal.timeout(8000),
+  }).catch(() => null);
+  const ataCheckJson = ataCheckResp ? await ataCheckResp.json().catch(() => null) : null;
+  const toATAExists = ataCheckJson?.result?.value !== null && ataCheckJson?.result?.value !== undefined;
+
+  if (!toATAExists) {
     tx.add(new w3.TransactionInstruction({
       programId: ASSOC_PROG,
       keys: [
@@ -663,7 +707,7 @@ async function loadSplBalances(walletPubkey) {
 
 // ─ Wallet activation ─────────────────────────────────────────────────────────
 function activateWallet(kp) {
-  S.kp=kp; S.conn=null; S.connVerified=false; saveKp(kp); updateNetBadge(); show('bottomnav'); showScreen('home');
+  S.kp=kp; S.conn=null; S.connVerified=false; S.workingRpc=null; saveKp(kp); updateNetBadge(); show('bottomnav'); showScreen('home');
 }
 function updateNetBadge() {
   const {network}=loadNet();
@@ -1335,7 +1379,7 @@ function initSettings() {
     hide('bottomnav');toast('Wallet removed','success');showScreen('onboarding');
   };
 }
-function applyNet(url,net){saveNet(url,net);S.conn=null;S.connVerified=false;toast(`Switched to ${net}`,'success');refreshSettings();updateNetBadge();}
+function applyNet(url,net){saveNet(url,net);S.conn=null;S.connVerified=false;S.workingRpc=null;toast(`Switched to ${net}`,'success');refreshSettings();updateNetBadge();}
 function refreshSettings(){
   if(!S.kp)return;
   const addr=S.kp.publicKey.toString();
