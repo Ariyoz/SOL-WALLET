@@ -184,7 +184,7 @@ function parseSplUnits(raw, decimals) {
   if (!s || !/^\d+(\.\d+)?$/.test(s)) throw new Error('Invalid amount — digits only, e.g. 10');
   const [w, f=''] = s.split('.');
   if (f.length > decimals) throw new Error(`Max ${decimals} decimal places`);
-  const v = BigInt(w) * BigInt(10**decimals) + BigInt(f.padEnd(decimals,'0'));
+  const v = BigInt(w) * (10n ** BigInt(decimals)) + BigInt(f.padEnd(decimals,'0'));
   if (v === 0n) throw new Error('Amount must be greater than zero');
   return v;
 }
@@ -256,7 +256,7 @@ async function broadcastTx(b64) {
 async function getTxHistory(address, limit, offset) {
   try {
     const conn = getConn();
-    const sigs = await conn.getSignaturesForAddress(new w3.PublicKey(address), { limit: Math.min(limit + offset, 50) });
+    const sigs = await conn.getSignaturesForAddress(new w3.PublicKey(address), { limit: limit + offset });
     const slice = sigs.slice(offset, offset + limit);
     const { network } = loadNet();
     return {
@@ -303,7 +303,7 @@ async function fetchMarketData() {
 const saveKp  = kp    => localStorage.setItem(STOR.kp, bs58.encode(kp.secretKey));
 const clearKp = ()    => localStorage.removeItem(STOR.kp);
 const saveNet = (u,n) => { localStorage.setItem(STOR.rpc,u); localStorage.setItem(STOR.net,n); };
-const loadNet = ()    => ({ rpcUrl:localStorage.getItem(STOR.rpc)||'https://api.devnet.solana.com', network:localStorage.getItem(STOR.net)||'devnet' });
+const loadNet = ()    => ({ rpcUrl:localStorage.getItem(STOR.rpc)||'https://api.mainnet-beta.solana.com', network:localStorage.getItem(STOR.net)||'mainnet-beta' });
 
 function loadKp() {
   const raw = localStorage.getItem(STOR.kp);
