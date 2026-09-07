@@ -11,8 +11,13 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy workspace files
-COPY Cargo.toml Cargo.lock ./
+# Copy workspace manifests
+COPY Cargo.toml ./
+
+# Copy Cargo.lock if it exists (optional — Docker will skip if missing)
+COPY Cargo.loc[k] ./
+
+# Copy source
 COPY crates/ crates/
 COPY patches/ patches/
 
@@ -30,20 +35,19 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-# Copy compiled binary from builder
+# Copy compiled binary
 COPY --from=builder /app/target/release/api ./api
 
-# Copy migrations (SQLite needs them at runtime)
+# Copy migrations
 COPY crates/storage/migrations/ ./migrations/
 
-# Render sets PORT env var — we read it via API_PORT
+# Render injects PORT — we read it in main.rs via $PORT
 ENV API_HOST=0.0.0.0
-ENV API_PORT=3000
 ENV RUST_LOG=info
 ENV DATABASE_URL=sqlite:./wallet.db
 ENV SOLANA_NETWORK=mainnet-beta
 ENV SOLANA_RPC_URL=https://api.mainnet-beta.solana.com
 
-EXPOSE 3000
+EXPOSE 10000
 
 CMD ["./api"]

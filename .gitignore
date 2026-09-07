@@ -1,6 +1,6 @@
 # Rust build artifacts
 target/
-Cargo.lock
+# NOTE: Cargo.lock must be committed for binary deployments (Docker/Render)
 
 # Database files
 *.db
