@@ -296,7 +296,7 @@ async function broadcastTx(b64) {
     return await r.json();
   } catch (_) {
     // Fallback: direct RPC
-    const conn = getConn();
+    const conn = await getWorkingConn();
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
     const sig = await conn.sendRawTransaction(bytes, {skipPreflight:false, preflightCommitment:'confirmed'});
     await conn.confirmTransaction(sig, 'confirmed');
@@ -317,7 +317,7 @@ async function getTxHistory(address, limit, offset) {
   } catch (_) {
     // Fallback: direct RPC
     try {
-      const conn = getConn();
+      const conn = await getWorkingConn();
       const sigs = await conn.getSignaturesForAddress(new w3.PublicKey(address), { limit: limit + offset });
       const slice = sigs.slice(offset, offset + limit);
       const { network } = loadNet();
@@ -375,6 +375,45 @@ function loadKp() {
 }
 
 // ─ Connection helper ─────────────────────────────────────────────────────────
+// Returns a working Connection by probing CORS-friendly endpoints.
+// Caches the first one that responds to getLatestBlockhash without a 403.
+async function getWorkingConn() {
+  // If we already have a verified working connection, reuse it
+  if (S.conn && S.connVerified) return S.conn;
+
+  const { rpcUrl, network } = loadNet();
+  // Build endpoint list: user's RPC first, then CORS-friendly fallbacks
+  // For non-mainnet, only try the user's configured endpoint
+  const candidates = network === 'mainnet-beta'
+    ? [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a) => a.indexOf(v) === i)
+    : [rpcUrl];
+
+  for (const rpc of candidates) {
+    try {
+      // Quick probe: raw fetch to check CORS + reachability
+      const probe = await fetch(rpc, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getLatestBlockhash', params:[{ commitment:'confirmed' }] }),
+        signal: AbortSignal.timeout(8000),
+      });
+      if (!probe.ok) continue;
+      const j = await probe.json();
+      if (j?.error || !j?.result) continue;
+      // This endpoint works — cache and return connection
+      S.conn = new w3.Connection(rpc, 'confirmed');
+      S.connVerified = true;
+      return S.conn;
+    } catch (_) { /* try next */ }
+  }
+
+  // Last resort — return connection to user's RPC even if it might fail
+  S.conn = new w3.Connection(rpcUrl, 'confirmed');
+  S.connVerified = false;
+  return S.conn;
+}
+
+// Sync fallback for places that just need a Connection object (non-critical)
 function getConn() {
   if (!S.conn) S.conn = new w3.Connection(loadNet().rpcUrl, 'confirmed');
   return S.conn;
@@ -416,7 +455,7 @@ function keyToWallet(b58) {
 // ─ SOL Signing ───────────────────────────────────────────────────────────────
 async function signTransfer(to, lamps) {
   if (!S.kp) throw new Error('No wallet');
-  const conn = getConn();
+  const conn = await getWorkingConn();
   const {blockhash,lastValidBlockHeight} = await conn.getLatestBlockhash('confirmed');
   const tx = new w3.Transaction();
   tx.add(w3.SystemProgram.transfer({fromPubkey:S.kp.publicKey,toPubkey:new w3.PublicKey(to),lamports:lamps}));
@@ -529,7 +568,7 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   const rawAmount = parseSplUnits(String(amount), tk.decimals);
   if (rawAmount <= 0n) throw new Error('Amount must be greater than zero');
 
-  const conn = getConn();
+  const conn = await getWorkingConn();
   const { blockhash, lastValidBlockHeight } = await conn.getLatestBlockhash('confirmed');
 
   const fromATA = getATA(fromPub, mintAddr);
@@ -624,7 +663,7 @@ async function loadSplBalances(walletPubkey) {
 
 // ─ Wallet activation ─────────────────────────────────────────────────────────
 function activateWallet(kp) {
-  S.kp=kp; S.conn=null; saveKp(kp); updateNetBadge(); show('bottomnav'); showScreen('home');
+  S.kp=kp; S.conn=null; S.connVerified=false; saveKp(kp); updateNetBadge(); show('bottomnav'); showScreen('home');
 }
 function updateNetBadge() {
   const {network}=loadNet();
@@ -1296,7 +1335,7 @@ function initSettings() {
     hide('bottomnav');toast('Wallet removed','success');showScreen('onboarding');
   };
 }
-function applyNet(url,net){saveNet(url,net);S.conn=null;toast(`Switched to ${net}`,'success');refreshSettings();updateNetBadge();}
+function applyNet(url,net){saveNet(url,net);S.conn=null;S.connVerified=false;toast(`Switched to ${net}`,'success');refreshSettings();updateNetBadge();}
 function refreshSettings(){
   if(!S.kp)return;
   const addr=S.kp.publicKey.toString();
