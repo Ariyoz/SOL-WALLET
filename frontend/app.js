@@ -364,16 +364,57 @@ async function getTxHistory(address, limit, offset) {
     const sigs = (sigJson?.result || []).slice(offset, offset + limit);
     if (!sigs.length) return { transactions: [], count: 0 };
 
-    const transactions = sigs.map(s => ({
-      signature: s.signature,
-      direction: 'sent',
-      amount_sol: '—',
-      fee_sol: '0.000005',
-      block_time: s.blockTime,
-      status: s.err ? 'failed' : 'confirmed',
-      counterparty_address: '',
-      explorer_url: `https://solscan.io/tx/${s.signature}${network === 'mainnet-beta' ? '' : '?cluster=' + network}`,
-    }));
+    // Enrich with parsed transaction details via batch /rpc call
+    let txDetails = [];
+    try {
+      const batch = sigs.map((s, i) => ({
+        jsonrpc: '2.0', id: i + 1,
+        method: 'getTransaction',
+        params: [s.signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }]
+      }));
+      const detailResp = await fetch(`${API}/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(batch),
+        signal: AbortSignal.timeout(20000),
+      });
+      if (detailResp.ok) {
+        const j = await detailResp.json();
+        txDetails = Array.isArray(j) ? j : [j];
+      }
+    } catch (_) { /* use basic data */ }
+
+    const transactions = sigs.map((s, i) => {
+      const result = txDetails.find(d => d.id === i + 1)?.result;
+      let direction = 'sent', amount_sol = '—', counterparty = '', fee_sol = '0.000005';
+
+      if (result?.meta) {
+        fee_sol = result.meta.fee ? (result.meta.fee / 1e9).toFixed(9) : fee_sol;
+        const keys = result.transaction?.message?.accountKeys || [];
+        const myIdx = keys.findIndex(k => (k.pubkey || k) === address);
+        const pre  = result.meta.preBalances  || [];
+        const post = result.meta.postBalances || [];
+        if (myIdx >= 0) {
+          const diff = (post[myIdx] || 0) - (pre[myIdx] || 0);
+          direction  = diff >= 0 ? 'received' : 'sent';
+          amount_sol = (Math.abs(diff) / 1e9).toFixed(6);
+        }
+        for (let j = 0; j < keys.length; j++) {
+          if (j === myIdx) continue;
+          const key = keys[j]?.pubkey || keys[j];
+          if (typeof key === 'string' && key.length >= 32) { counterparty = key; break; }
+        }
+      }
+
+      return {
+        signature: s.signature,
+        direction, amount_sol, fee_sol,
+        block_time: s.blockTime,
+        status: s.err ? 'failed' : 'confirmed',
+        counterparty_address: counterparty,
+        explorer_url: `https://solscan.io/tx/${s.signature}${network === 'mainnet-beta' ? '' : '?cluster=' + network}`,
+      };
+    });
     return { transactions, count: transactions.length };
   } catch (_) {
     return { transactions: [], count: 0 };
@@ -1393,32 +1434,45 @@ async function refreshReceive() {
   const loading=g('qr-loading');
   txt('receive-address-display',addr);
 
-  // Measure the actual available width of the QR frame
-  const frame = canvas.parentElement;
-  const frameW = frame ? Math.min(frame.clientWidth - 28, 240) : 220; // subtract padding
-  const SZ = Math.max(160, frameW); // at least 160px
+  show(loading); hide(canvas);
 
-  hide(loading); show(canvas);
+  // Use a fixed size that works well on mobile
+  const SZ = 220;
 
-  const qd=await getQrCode(addr);
+  // Try QRCode.draw from the bundled library
+  if(window.QRCode?.draw){
+    try{
+      canvas.width = SZ;
+      canvas.height = SZ;
+      // Clear any previous drawing
+      canvas.getContext('2d').clearRect(0, 0, SZ, SZ);
+      QRCode.draw(canvas, uri, {size: SZ});
+      hide(loading); show(canvas);
+      return;
+    }catch(e){ console.warn('QRCode.draw failed:', e); }
+  }
+
+  // Fallback: try backend QR
+  const qd = await getQrCode(addr);
   if(qd?.qr_code_png_base64){
     const img=new Image();
     img.onload=()=>{
       canvas.width=SZ; canvas.height=SZ;
       canvas.getContext('2d').drawImage(img,0,0,SZ,SZ);
+      hide(loading); show(canvas);
     };
     img.src=`data:image/png;base64,${qd.qr_code_png_base64}`;
     return;
   }
-  if(window.QRCode?.draw){
-    try{QRCode.draw(canvas,uri,{size:SZ});return;}catch(_){}
-  }
-  // Fallback: draw address text as QR placeholder
+
+  // Last resort: draw address as grid of squares (readable as text)
   canvas.width=SZ; canvas.height=SZ;
   const ctx=canvas.getContext('2d');
-  ctx.fillStyle='#fff'; ctx.fillRect(0,0,SZ,SZ);
-  ctx.fillStyle='#000'; ctx.font='8px monospace'; ctx.textAlign='center';
-  addr.match(/.{1,11}/g)?.forEach((c,i)=>ctx.fillText(c,SZ/2,14+i*11));
+  ctx.fillStyle='#ffffff'; ctx.fillRect(0,0,SZ,SZ);
+  ctx.fillStyle='#111111'; ctx.font='bold 9px monospace'; ctx.textAlign='center';
+  const lines = addr.match(/.{1,12}/g) || [];
+  lines.forEach((line,i)=>ctx.fillText(line, SZ/2, 20 + i*13));
+  hide(loading); show(canvas);
 }
 
 // ══════════════════════════════════════════
