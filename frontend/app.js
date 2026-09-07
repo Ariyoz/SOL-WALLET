@@ -725,8 +725,12 @@ function writeU64LE(arr, value, offset) {
 async function signSplTransfer(toWalletAddress, symbol, amount) {
   if (!S.kp) throw new Error('No wallet loaded');
 
-  const TOKEN_PROG = new w3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-  const ASSOC_PROG = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
+  // PYUSD uses Token-2022, USDC uses legacy Token program
+  const IS_TOKEN_2022  = symbol === 'PYUSD';
+  const TOKEN_PROG     = new w3.PublicKey(IS_TOKEN_2022
+    ? 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'
+    : 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+  const ASSOC_PROG     = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
   const SYS_PROG   = w3.SystemProgram.programId;
   const SYSVAR_RENT = new w3.PublicKey('SysvarRent111111111111111111111111111111111');
 
@@ -822,25 +826,38 @@ async function loadSplBalances(walletPubkey) {
     PYUSD: pyusdMkt ? pyusdMkt.current_price : 1.0,
   };
 
-  // Fetch ALL token accounts for this wallet in one call
+  // Fetch ALL token accounts for this wallet — query BOTH token programs
+  // (PYUSD uses Token-2022, USDC uses legacy Token program)
   try {
-    const resp = await fetch(`${API}/rpc`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        jsonrpc: '2.0', id: 1,
-        method: 'getTokenAccountsByOwner',
-        params: [
-          walletAddr,
-          { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
-          { encoding: 'jsonParsed' }
-        ]
+    const TOKEN_PROG      = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+    const TOKEN_2022_PROG = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+
+    const [resp1, resp2] = await Promise.all([
+      fetch(`${API}/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getTokenAccountsByOwner',
+          params:[walletAddr, { programId: TOKEN_PROG }, { encoding:'jsonParsed' }] }),
+        signal: AbortSignal.timeout(12000),
       }),
-      signal: AbortSignal.timeout(12000),
-    });
-    if (!resp.ok) throw new Error('rpc error');
-    const json = await resp.json();
-    const accounts = json?.result?.value || [];
+      fetch(`${API}/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc:'2.0', id:2, method:'getTokenAccountsByOwner',
+          params:[walletAddr, { programId: TOKEN_2022_PROG }, { encoding:'jsonParsed' }] }),
+        signal: AbortSignal.timeout(12000),
+      }),
+    ]);
+
+    const [j1, j2] = await Promise.all([
+      resp1.ok ? resp1.json() : { result: { value: [] } },
+      resp2.ok ? resp2.json() : { result: { value: [] } },
+    ]);
+
+    const accounts = [
+      ...(j1?.result?.value || []),
+      ...(j2?.result?.value || []),
+    ];
 
     // Build a map of mint → uiAmount
     const balMap = {};
