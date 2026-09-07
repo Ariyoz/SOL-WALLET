@@ -801,46 +801,93 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
 
 // ─ SPL Balance loader ────────────────────────────────────────────────────────
 
+// ─ SPL Balance loader ────────────────────────────────────────────────────────
+// Uses getTokenAccountsByOwner — no ATA derivation needed, works reliably
+
 async function loadSplBalances(walletPubkey) {
-  // Live market prices for stablecoins
+  const walletAddr = walletPubkey.toString();
+
+  // Token mint addresses for mainnet
+  const { network } = loadNet();
+  const MINTS = {
+    USDC:  network === 'mainnet-beta' ? SPL_TOKENS.USDC.mainnet  : SPL_TOKENS.USDC.devnet,
+    PYUSD: network === 'mainnet-beta' ? SPL_TOKENS.PYUSD.mainnet : SPL_TOKENS.PYUSD.devnet,
+  };
+
+  // Live market prices
   const usdcMkt  = S.marketData.find(c => c.id === 'usd-coin');
   const pyusdMkt = S.marketData.find(c => c.id === 'paypal-usd' || c.symbol?.toLowerCase() === 'pyusd');
-
-  const prices = {
+  const prices   = {
     USDC:  usdcMkt  ? usdcMkt.current_price  : 1.0,
     PYUSD: pyusdMkt ? pyusdMkt.current_price : 1.0,
   };
 
-  for (const sym of ['USDC', 'PYUSD']) {
-    try {
-      const mintAddr = getSplMint(sym);
-      if (!mintAddr) continue;
-      const bal = await getSplBalance(walletPubkey, mintAddr);
-      const ui  = bal ? (bal.uiAmount ?? 0) : 0;
+  // Fetch ALL token accounts for this wallet in one call
+  try {
+    const resp = await fetch(`${API}/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1,
+        method: 'getTokenAccountsByOwner',
+        params: [
+          walletAddr,
+          { programId: 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA' },
+          { encoding: 'jsonParsed' }
+        ]
+      }),
+      signal: AbortSignal.timeout(12000),
+    });
+    if (!resp.ok) throw new Error('rpc error');
+    const json = await resp.json();
+    const accounts = json?.result?.value || [];
+
+    // Build a map of mint → uiAmount
+    const balMap = {};
+    for (const acct of accounts) {
+      const info = acct.account?.data?.parsed?.info;
+      if (!info) continue;
+      const mint    = info.mint;
+      const uiAmt   = info.tokenAmount?.uiAmount ?? 0;
+      balMap[mint]  = (balMap[mint] || 0) + uiAmt;
+    }
+
+    // Update UI for each token
+    for (const sym of ['USDC', 'PYUSD']) {
+      const mint   = MINTS[sym];
+      const ui     = balMap[mint] ?? 0;
       tokenBals[sym] = ui;
 
-      const price = prices[sym];
+      const price  = prices[sym];
       const usdVal = ui * price;
-      const key = sym.toLowerCase();
+      const key    = sym.toLowerCase();
 
-      // Balance row under name
       const sub = g(`ar-${key}-sub`);
       if (sub) sub.textContent = `${ui.toFixed(2)} ${sym}`;
 
-      // USD value on right
       const usd = g(`ar-${key}-usd`);
       if (usd) usd.textContent = `$${usdVal.toFixed(2)}`;
 
-      // Price label in the change column
       const chg = g(`ar-${key}-chg`);
       if (chg) {
-        chg.textContent = `$${price.toFixed(4)}`;
-        chg.style.color = 'var(--t3)';
+        chg.textContent  = `$${price.toFixed(4)}`;
+        chg.style.color  = 'var(--t3)';
         chg.style.fontSize = '.66rem';
       }
-    } catch (_) {
-      tokenBals[sym] = 0;
     }
+
+    // Refresh total balance to include token values
+    if (S.price !== null) {
+      const solUsd   = S.solBal * S.price;
+      const usdcUsd  = tokenBals.USDC  || 0;
+      const pyusdUsd = tokenBals.PYUSD || 0;
+      const total    = solUsd + usdcUsd + pyusdUsd;
+      const [d, c]   = total.toFixed(2).split('.');
+      txt('bal-main',  Number(d).toLocaleString());
+      txt('bal-cents', '.' + c);
+    }
+  } catch (e) {
+    console.warn('loadSplBalances failed:', e.message);
   }
 }
 
@@ -950,7 +997,10 @@ async function refreshHome() {
       toast('Could not reach Solana network — tap refresh', 'error', 6000);
     } else {
       if (S.price !== null) {
-        const usd = S.solBal * S.price;
+        const solUsd   = S.solBal * S.price;
+        const usdcUsd  = tokenBals.USDC  || 0;
+        const pyusdUsd = tokenBals.PYUSD || 0;
+        const usd = solUsd + usdcUsd + pyusdUsd;
         const [d,c] = usd.toFixed(2).split('.');
         txt('bal-main',  Number(d).toLocaleString());
         txt('bal-cents', '.'+c);
