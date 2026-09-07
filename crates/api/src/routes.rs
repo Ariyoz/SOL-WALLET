@@ -22,6 +22,8 @@ pub fn build_router(state: AppState) -> Router {
     Router::new()
         // Health
         .route("/health", get(handlers::health))
+        // Generic RPC proxy (CORS-safe passthrough to Solana RPC)
+        .route("/rpc", post(handlers::rpc_proxy))
         // Blockhash
         .route("/blockhash", get(handlers::get_blockhash))
         // Wallet

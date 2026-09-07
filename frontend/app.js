@@ -399,16 +399,32 @@ async function getWorkingRpcUrl() {
 
 /** Fetch the latest blockhash — tries backend first, then raw RPC fetch */
 async function fetchLatestBlockhash() {
-  // 1) Try Render backend (no CORS issues, always works)
+  // 1) Try dedicated /blockhash endpoint (clean, fast)
   try {
-    const r = await fetch(`${API}/blockhash`, { signal: AbortSignal.timeout(12000) });
+    const r = await fetch(`${API}/blockhash`, { signal: AbortSignal.timeout(55000) });
     if (r.ok) {
       const d = await r.json();
       if (d?.blockhash) return { blockhash: d.blockhash, lastValidBlockHeight: d.lastValidBlockHeight };
     }
   } catch (_) { /* fall through */ }
 
-  // 2) Raw fetch to CORS-friendly RPC endpoints
+  // 2) Try generic /rpc proxy on the backend (CORS-safe, works once Render deploys)
+  try {
+    const r = await fetch(`${API}/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getLatestBlockhash', params:[{ commitment:'confirmed' }] }),
+      signal: AbortSignal.timeout(55000),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      if (j?.result?.value?.blockhash) {
+        return { blockhash: j.result.value.blockhash, lastValidBlockHeight: j.result.value.lastValidBlockHeight };
+      }
+    }
+  } catch (_) { /* fall through */ }
+
+  // 3) Raw fetch to CORS-friendly RPC endpoints (last resort)
   const { rpcUrl } = loadNet();
   const candidates = [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a) => a.indexOf(v) === i);
   for (const rpc of candidates) {
@@ -417,15 +433,12 @@ async function fetchLatestBlockhash() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getLatestBlockhash', params:[{ commitment:'confirmed' }] }),
-        signal: AbortSignal.timeout(8000),
+        signal: AbortSignal.timeout(10000),
       });
       if (!r.ok) continue;
       const j = await r.json();
       if (j?.error || !j?.result?.value?.blockhash) continue;
-      return {
-        blockhash: j.result.value.blockhash,
-        lastValidBlockHeight: j.result.value.lastValidBlockHeight,
-      };
+      return { blockhash: j.result.value.blockhash, lastValidBlockHeight: j.result.value.lastValidBlockHeight };
     } catch (_) { /* try next */ }
   }
   throw new Error('Could not fetch blockhash from any endpoint');
@@ -435,13 +448,13 @@ async function fetchLatestBlockhash() {
 async function sendRawTxFetch(serializedBytes) {
   const b64 = btoa(String.fromCharCode(...serializedBytes));
 
-  // 1) Try Render backend
+  // 1) Try Render backend /transaction/send
   try {
     const r = await fetch(`${API}/transaction/send`, {
       method: 'POST',
       headers: {'Content-Type': 'application/json'},
       body: JSON.stringify({ signed_transaction_base64: b64 }),
-      signal: AbortSignal.timeout(20000),
+      signal: AbortSignal.timeout(55000),
     });
     if (r.ok) {
       const d = await r.json();
@@ -449,7 +462,24 @@ async function sendRawTxFetch(serializedBytes) {
     }
   } catch (_) { /* fall through */ }
 
-  // 2) Raw RPC fallback
+  // 2) Try generic /rpc proxy on the backend
+  try {
+    const r = await fetch(`${API}/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'sendTransaction',
+        params: [b64, { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]
+      }),
+      signal: AbortSignal.timeout(55000),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      if (j?.result && !j?.error) return j.result;
+    }
+  } catch (_) { /* fall through */ }
+
+  // 3) Raw RPC fallback
   const rpcUrl = await getWorkingRpcUrl();
   const r = await fetch(rpcUrl, {
     method: 'POST',
@@ -462,7 +492,7 @@ async function sendRawTxFetch(serializedBytes) {
   });
   const j = await r.json();
   if (j?.error) throw new Error(j.error.message || 'Send failed');
-  return j.result; // signature string
+  return j.result;
 }
 
 // Sync fallback for non-critical uses
@@ -1452,4 +1482,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   const existing = loadKp();
   if (existing) { S.kp=existing; show('bottomnav'); showScreen('home'); }
   else showScreen('onboarding');
+
+  // Warm up the Render backend in the background so it's ready when needed
+  fetch(`${API}/health`, { signal: AbortSignal.timeout(55000) }).catch(() => {});
 });

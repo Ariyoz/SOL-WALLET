@@ -31,6 +31,35 @@ use wallet_core::{
 use crate::{error::ApiError, state::AppState};
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  POST /rpc  — generic Solana RPC proxy (CORS-safe passthrough)
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub async fn rpc_proxy(
+    State(state): State<AppState>,
+    Json(body): Json<Value>,
+) -> Result<Json<Value>, ApiError> {
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(15))
+        .build()
+        .map_err(|e| ApiError::Internal(e.to_string()))?;
+
+    let rpc_url = state.rpc_url.as_str();
+    let resp = client
+        .post(rpc_url)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|e| ApiError::Internal(format!("RPC proxy error: {e}")))?;
+
+    let json: Value = resp
+        .json()
+        .await
+        .map_err(|e| ApiError::Internal(format!("RPC response parse error: {e}")))?;
+
+    Ok(Json(json))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  GET /blockhash
 // ─────────────────────────────────────────────────────────────────────────────
 
