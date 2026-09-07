@@ -28,6 +28,7 @@ pub fn build_router(state: AppState) -> Router {
         .route("/blockhash", get(handlers::get_blockhash))
         // Wallet
         .route("/wallet/balance/:address", get(handlers::get_balance))
+        .route("/wallet/signatures/:address", get(handlers::get_wallet_signatures))
         .route("/wallet/transactions/:address", get(handlers::get_wallet_transactions))
         .route("/wallet/qr/:address", get(handlers::get_qr_code))
         // Transactions

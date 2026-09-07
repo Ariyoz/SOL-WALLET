@@ -282,6 +282,45 @@ pub async fn get_transaction(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+//  GET /wallet/signatures/:address  — on-chain tx history from RPC
+// ─────────────────────────────────────────────────────────────────────────────
+
+pub async fn get_wallet_signatures(
+    State(state): State<AppState>,
+    Path(address): Path<String>,
+    Query(params): Query<PaginationParams>,
+) -> Result<Json<Value>, ApiError> {
+    let pubkey = validate_address(&address)?;
+    let limit  = params.limit.unwrap_or(20).min(50) as usize;
+
+    let sigs = state
+        .rpc_client
+        .get_signatures_for_address(&pubkey)
+        .await
+        .map_err(|e| ApiError::Internal(format!("Failed to fetch signatures: {e}")))?;
+
+    let items: Vec<Value> = sigs.iter().take(limit).map(|s| {
+        let network = state.cluster.as_str();
+        json!({
+            "signature":  s.signature,
+            "block_time": s.block_time,
+            "status":     if s.err.is_some() { "failed" } else { "confirmed" },
+            "direction":  "sent",
+            "amount_sol": "—",
+            "fee_sol":    "0.000005",
+            "counterparty_address": "",
+            "explorer_url": build_explorer_url(&s.signature, network),
+        })
+    }).collect();
+
+    Ok(Json(json!({
+        "address":      address,
+        "transactions": items,
+        "count":        items.len(),
+    })))
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 //  GET /wallet/transactions/:address
 // ─────────────────────────────────────────────────────────────────────────────
 

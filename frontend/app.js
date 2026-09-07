@@ -294,40 +294,89 @@ async function broadcastTx(b64) {
 }
 
 async function getTxHistory(address, limit, offset) {
-  // Try backend first
+  const { network } = loadNet();
+
+  // 1) Try dedicated backend endpoint — fetches from chain with proper detail
   try {
-    const r = await fetch(`${API}/wallet/transactions/${address}?limit=${limit}&offset=${offset}`, {signal: AbortSignal.timeout(12000)});
-    if (!r.ok) throw new Error('backend error');
-    return await r.json();
+    const r = await fetch(
+      `${API}/wallet/signatures/${address}?limit=${limit}&offset=${offset}`,
+      { signal: AbortSignal.timeout(15000) }
+    );
+    if (r.ok) {
+      const d = await r.json();
+      if (d.transactions?.length) {
+        // Enrich with parsed tx details via /rpc batch
+        try {
+          const batch = d.transactions.map((tx, i) => ({
+            jsonrpc: '2.0', id: i + 1,
+            method: 'getTransaction',
+            params: [tx.signature, { encoding: 'jsonParsed', commitment: 'confirmed', maxSupportedTransactionVersion: 0 }]
+          }));
+          const detailResp = await fetch(`${API}/rpc`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(batch),
+            signal: AbortSignal.timeout(20000),
+          });
+          if (detailResp.ok) {
+            const details = await detailResp.json();
+            const detailArr = Array.isArray(details) ? details : [details];
+            d.transactions = d.transactions.map((tx, i) => {
+              const result = detailArr.find(x => x.id === i + 1)?.result;
+              if (!result?.meta) return tx;
+              const keys = result.transaction?.message?.accountKeys || [];
+              const myIdx = keys.findIndex(k => (k.pubkey || k) === address);
+              const pre  = result.meta.preBalances  || [];
+              const post = result.meta.postBalances || [];
+              if (myIdx >= 0) {
+                const diff = (post[myIdx] || 0) - (pre[myIdx] || 0);
+                tx.direction  = diff >= 0 ? 'received' : 'sent';
+                tx.amount_sol = (Math.abs(diff) / 1e9).toFixed(6);
+                tx.fee_sol    = result.meta.fee ? (result.meta.fee / 1e9).toFixed(9) : tx.fee_sol;
+                for (let j = 0; j < keys.length; j++) {
+                  if (j === myIdx) continue;
+                  const key = keys[j]?.pubkey || keys[j];
+                  if (typeof key === 'string' && key.length >= 32) { tx.counterparty_address = key; break; }
+                }
+              }
+              return tx;
+            });
+          }
+        } catch (_) { /* use undetailed data */ }
+        return d;
+      }
+    }
+  } catch (_) { /* fall through */ }
+
+  // 2) Fallback: pure /rpc proxy
+  try {
+    const sigResp = await fetch(`${API}/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1, method: 'getSignaturesForAddress',
+        params: [address, { limit: limit + offset, commitment: 'confirmed' }]
+      }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!sigResp.ok) throw new Error('rpc error');
+    const sigJson = await sigResp.json();
+    const sigs = (sigJson?.result || []).slice(offset, offset + limit);
+    if (!sigs.length) return { transactions: [], count: 0 };
+
+    const transactions = sigs.map(s => ({
+      signature: s.signature,
+      direction: 'sent',
+      amount_sol: '—',
+      fee_sol: '0.000005',
+      block_time: s.blockTime,
+      status: s.err ? 'failed' : 'confirmed',
+      counterparty_address: '',
+      explorer_url: `https://solscan.io/tx/${s.signature}${network === 'mainnet-beta' ? '' : '?cluster=' + network}`,
+    }));
+    return { transactions, count: transactions.length };
   } catch (_) {
-    // Fallback: direct JSON-RPC fetch
-    try {
-      const rpcUrl = await getWorkingRpcUrl();
-      const r = await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getSignaturesForAddress',
-          params:[address, { limit: limit + offset }] }),
-        signal: AbortSignal.timeout(12000),
-      });
-      const j = await r.json();
-      const sigs = j?.result || [];
-      const slice = sigs.slice(offset, offset + limit);
-      const { network } = loadNet();
-      return {
-        transactions: slice.map(s => ({
-          signature: s.signature,
-          direction: 'sent',
-          amount_sol: '—',
-          fee_sol: '0.000005',
-          block_time: s.blockTime,
-          status: s.err ? 'failed' : 'confirmed',
-          counterparty_address: '',
-          explorer_url: `https://solscan.io/tx/${s.signature}${network==='mainnet-beta'?'':'?cluster='+network}`,
-        })),
-        count: slice.length,
-      };
-    } catch(_) { return { transactions: [], count: 0 }; }
+    return { transactions: [], count: 0 };
   }
 }
 
