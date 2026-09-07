@@ -21,7 +21,7 @@ COPY crates/ crates/
 COPY patches/ patches/
 
 # Build — without --locked so Cargo resolves fresh compatible versions
-RUN cargo build --release --bin api
+RUN cargo build --release --bin solana-wallet-api
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM debian:bookworm-slim
@@ -34,7 +34,7 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /app
 
-COPY --from=builder /app/target/release/api ./api
+COPY --from=builder /app/target/release/solana-wallet-api ./api
 COPY crates/storage/migrations/ ./migrations/
 
 ENV API_HOST=0.0.0.0
