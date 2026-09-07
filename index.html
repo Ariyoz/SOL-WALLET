@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"/>
+<title>SOL Wallet</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="frontend/style.css"/>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' rx='10' fill='%2314f195'/><path d='M8 27h24l-5 6H3zm0-10h24l-5 6H3zm5-10h24l-5 6H8z' fill='%230a0a0f'/></svg>">
+<script src="frontend/qrcode.min.js"></script>
+<script src="frontend/vendor/solana-web3.js"></script>
+<script src="frontend/vendor/bs58.js"></script>
+<script src="frontend/vendor/bip39.js"></script>
+</head>
+<body>
+<div id="app">
+
+<!-- ══ BOTTOM NAV ══ -->
+<nav id="bottomnav" class="bnav hidden">
+  <button class="bn active" data-screen="home">
+    <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+    <span>Wallet</span>
+  </button>
+  <button class="bn" data-screen="markets">
+    <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+    <span>Markets</span>
+  </button>
+  <button class="bn send-bn" data-screen="send">
+    <div class="bn-send-ico">
+      <svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+    </div>
+  </button>
+  <button class="bn" data-screen="history">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+    <span>Activity</span>
+  </button>
+  <button class="bn" data-screen="settings">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+    <span>Settings</span>
+  </button>
+</nav>
+
+<!-- ══ ONBOARDING ══ -->
+<section id="screen-onboarding" class="screen active">
+  <div class="ob-wrap">
+    <div class="ob-glow"></div>
+    <div class="ob-body">
+      <div class="ob-brand"><div class="ob-gem">◈</div><span>SOL Wallet</span></div>
+      <h1 class="ob-h1">Send, receive &amp;<br/>track SOL</h1>
+      <p class="ob-p">Non-custodial · Low fees · Instant</p>
+      <div class="ob-cards">
+        <div class="ob-card"><span class="obc-icon">⚡</span><span class="obc-n">~$0.001</span><span class="obc-l">Per tx</span></div>
+        <div class="ob-card"><span class="obc-icon">🔒</span><span class="obc-n">100%</span><span class="obc-l">Self-custody</span></div>
+        <div class="ob-card"><span class="obc-icon">✅</span><span class="obc-n">&lt;1s</span><span class="obc-l">Confirm</span></div>
+      </div>
+      <button id="btn-create-wallet" class="btn-green-lg"><svg viewBox="0 0 24 24"><path d="M12 5v14M5 12l7-7 7 7"/></svg>Create New Wallet</button>
+      <button id="btn-import-wallet" class="btn-outline-lg"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>Import Existing</button>
+      <p class="ob-note">🔐 Private key never leaves your device</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══ CREATE ══ -->
+<section id="screen-create" class="screen">
+  <div class="topbar"><button class="tb-back" data-back="onboarding"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><span class="tb-title">Create Wallet</span><div style="width:34px"></div></div>
+  <div class="scroll-wrap">
+    <div id="create-step-1"><div class="setup-card"><div class="sc-ico">🔐</div><h3>Recovery Phrase</h3><p>24 words from cryptographic randomness. Write them down — the only way to recover your wallet.</p><button id="btn-generate" class="btn-green">Generate Phrase</button></div></div>
+    <div id="create-step-2" class="hidden">
+      <div class="warn-box">⚠️ <strong>Write these 24 words in order.</strong> Anyone with this phrase has full access.</div>
+      <div id="mnemonic-grid" class="mn-grid"></div>
+      <label class="chk-row"><span class="chk-wrap"><input type="checkbox" id="confirm-written"/><span class="chkbox"></span></span>I've saved all 24 words securely</label>
+      <button id="btn-confirm-mnemonic" class="btn-green" disabled>Open Wallet →</button>
+    </div>
+  </div>
+</section>
+
+<!-- ══ IMPORT ══ -->
+<section id="screen-import" class="screen">
+  <div class="topbar"><button class="tb-back" data-back="onboarding"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><span class="tb-title">Import Wallet</span><div style="width:34px"></div></div>
+  <div class="scroll-wrap">
+    <div class="tab-bar"><button class="tab active" data-tab="imp-phrase">Recovery Phrase</button><button class="tab" data-tab="imp-key">Private Key</button></div>
+    <div id="imp-phrase" class="tab-pane"><div class="field"><label>12 or 24-word phrase</label><textarea id="input-mnemonic" class="inp-area" rows="4" placeholder="word1 word2 …" autocomplete="off" spellcheck="false"></textarea></div><button id="btn-import-mnemonic" class="btn-green">Import Wallet</button></div>
+    <div id="imp-key" class="tab-pane hidden"><div class="field"><label>Base58 private key</label><input type="password" id="input-privkey" class="inp" placeholder="Paste key…" autocomplete="off"/></div><button id="btn-import-privkey" class="btn-green">Import Wallet</button></div>
+    <div id="import-error" class="err-box hidden"></div>
+  </div>
+</section>
+
+<!-- ══ HOME ══ -->
+<section id="screen-home" class="screen">
+  <div class="home-header">
+    <div class="hh-left">
+      <button class="hh-ava" id="btn-copy-addr-home" title="Copy address">
+        <div class="ava-sol"><svg viewBox="0 0 646 646" width="18" height="18"><path fill="white" d="M108.53 478.77a17.6 17.6 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="white" d="M108.53 77.78a18.05 18.05 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="white" d="M523.21 278.27a17.6 17.6 0 00-12.45-5.16H32.7a8.8 8.8 0 00-6.22 15.02l81.55 81.55a17.6 17.6 0 0012.45 5.16h477.71a8.8 8.8 0 006.22-15.02z"/></svg></div>
+        <span id="home-address-display" class="hh-addr">—</span>
+      </button>
+    </div>
+    <div class="hh-right">
+      <button class="hh-icon" id="btn-refresh-balance"><svg viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button>
+      <span id="net-pill" class="net-pill devnet">Devnet</span>
+    </div>
+  </div>
+
+  <!-- Balance card -->
+  <div class="bal-card">
+    <div class="bc-glow"></div>
+    <div class="bc-inner">
+      <div class="bc-lbl">Total Balance</div>
+      <div class="bc-amount"><span class="bc-sym">$</span><span id="bal-main">—</span><span id="bal-cents" class="bc-cents"></span></div>
+      <div class="bc-sol" id="bal-sol-row">— SOL</div>
+      <button class="bc-pill" id="change-pill"><span class="bc-dot"></span><span id="change-text">Loading…</span></button>
+    </div>
+  </div>
+
+  <!-- Actions -->
+  <div class="action-row">
+    <button class="act-btn" data-screen="send"><div class="act-ico a-send"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div><span>Send</span></button>
+    <button class="act-btn" data-screen="receive"><div class="act-ico a-recv"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><span>Receive</span></button>
+    <button class="act-btn" id="btn-copy-act"><div class="act-ico a-copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></div><span>Copy</span></button>
+    <button class="act-btn" data-screen="markets"><div class="act-ico a-mkt"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><span>Markets</span></button>
+  </div>
+
+  <!-- Assets: SOL + USDC + PYUSD -->
+  <div class="sec-hdr"><span>Assets</span><button class="sec-more" data-screen="markets">See all</button></div>
+  <div class="asset-list">
+    <!-- SOL -->
+    <div class="asset-row" id="asset-sol-row">
+      <div class="ar-ico sol-col"><svg viewBox="0 0 646 646" width="22" height="22"><path fill="white" d="M108.53 478.77a17.6 17.6 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="white" d="M108.53 77.78a18.05 18.05 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="white" d="M523.21 278.27a17.6 17.6 0 00-12.45-5.16H32.7a8.8 8.8 0 00-6.22 15.02l81.55 81.55a17.6 17.6 0 0012.45 5.16h477.71a8.8 8.8 0 006.22-15.02z"/></svg></div>
+      <div class="ar-info"><div class="ar-name">Solana</div><div class="ar-sub" id="ar-sol-sub">— SOL</div></div>
+      <div class="ar-right"><div class="ar-usd" id="ar-sol-usd">$—</div><div class="ar-chg" id="ar-sol-chg"></div></div>
+    </div>
+    <!-- USDC -->
+    <div class="asset-row" id="asset-usdc-row">
+      <div class="ar-ico" style="background:none;padding:0">
+        <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png"
+             width="44" height="44" alt="USDC" style="border-radius:50%;display:block;object-fit:cover"
+             onerror="this.style.display='none';this.parentElement.innerHTML='<div class=\'ar-ico usdc-col\' style=\'width:44px;height:44px\'><svg viewBox=\'0 0 32 32\' width=\'22\' height=\'22\'><circle cx=\'16\' cy=\'16\' r=\'16\' fill=\'#2775CA\'/><path fill=\'#fff\' d=\'M20.5 16.5c0-1.7-1-2.5-3.1-2.8l-.3-.1c-1.3-.2-1.7-.6-1.7-1.3s.5-1.2 1.5-1.2c.9 0 1.4.3 1.7 1.1.1.2.2.3.4.3h.9c.2 0 .4-.2.4-.4-.2-1.2-1.1-2.1-2.4-2.3V8.6c0-.2-.2-.4-.4-.5h-.8c-.3 0-.5.2-.5.5v1.1c-1.5.2-2.5 1.2-2.5 2.5 0 1.6 1 2.4 3 2.7l.3.1c1.4.2 1.8.6 1.8 1.4 0 .8-.6 1.3-1.6 1.3-1.2 0-1.7-.5-1.9-1.3-.1-.2-.2-.4-.4-.4h-.9c-.2 0-.4.2-.4.4.2 1.3 1.1 2.2 2.6 2.4v1.1c0 .2.2.4.5.5h.8c.2 0 .4-.2.4-.5v-1.1c1.5-.2 2.6-1.2 2.6-2.8z\'/></svg></div>'"/>
+      </div>
+      <div class="ar-info"><div class="ar-name">USD Coin</div><div class="ar-sub" id="ar-usdc-sub">— USDC</div></div>
+      <div class="ar-right"><div class="ar-usd" id="ar-usdc-usd">$—</div><div class="ar-chg" id="ar-usdc-chg" style="color:var(--t3)">USDC</div></div>
+    </div>
+    <!-- PYUSD -->
+    <div class="asset-row" id="asset-pyusd-row">
+      <div class="ar-ico" style="background:none;padding:0">
+        <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo/logo.png"
+             width="44" height="44" alt="PYUSD" style="border-radius:50%;display:block;object-fit:cover"
+             onerror="this.src='https://assets.coingecko.com/coins/images/31212/small/PYUSD_Logo_%282%29.png'"/>
+      </div>
+      <div class="ar-info"><div class="ar-name">PayPal USD</div><div class="ar-sub" id="ar-pyusd-sub">— PYUSD</div></div>
+      <div class="ar-right"><div class="ar-usd" id="ar-pyusd-usd">$—</div><div class="ar-chg" id="ar-pyusd-chg" style="color:var(--t3)">PYUSD</div></div>
+    </div>
+  </div>
+
+  <!-- Recent -->
+  <div class="sec-hdr" style="margin-top:.25rem"><span>Recent Activity</span><button class="sec-more" data-screen="history">See all</button></div>
+  <div id="recent-tx-list" class="tx-feed"><div class="tx-empty">No transactions yet</div></div>
+  <div style="height:6rem"></div>
+</section>
+
+<!-- ══ MARKETS ══ -->
+<section id="screen-markets" class="screen">
+  <div class="topbar"><span class="tb-title-lg">Markets</span><button class="hh-icon" id="btn-refresh-markets"><svg viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button></div>
+  <div class="scroll-wrap">
+    <div class="mkt-tabs"><button class="mkt-tab active" data-mtab="trending">Trending</button><button class="mkt-tab" data-mtab="gainers">Gainers</button><button class="mkt-tab" data-mtab="losers">Losers</button></div>
+    <div id="market-list" class="mkt-list"><div class="mkt-loading">Loading market data…</div></div>
+    <div style="height:5rem"></div>
+  </div>
+</section>
+
+<!-- ══ SEND — SOL + USDC + PYUSD ══ -->
+<section id="screen-send" class="screen">
+  <div class="send-topbar">
+    <button class="tb-back" data-back="home"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <span id="send-topbar-title">Send SOL</span>
+    <div style="width:34px"></div>
+  </div>
+
+  <!-- STEP 1: FORM -->
+  <div id="send-step-form" class="send-form-wrap">
+    <!-- Token selector -->
+    <div class="token-tabs">
+      <button class="tok-tab active" data-token="SOL">
+        <div class="tt-ico sol-col"><svg viewBox="0 0 646 646" width="13" height="13"><path fill="white" d="M108.53 478.77a17.6 17.6 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="white" d="M108.53 77.78a18.05 18.05 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="white" d="M523.21 278.27a17.6 17.6 0 00-12.45-5.16H32.7a8.8 8.8 0 00-6.22 15.02l81.55 81.55a17.6 17.6 0 0012.45 5.16h477.71a8.8 8.8 0 006.22-15.02z"/></svg></div>
+        SOL
+      </button>
+      <button class="tok-tab" data-token="USDC">
+        <div class="tt-ico">
+          <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png"
+               width="20" height="20" alt="USDC" style="border-radius:50%;display:block;object-fit:cover"
+               onerror="this.parentElement.style.background='#2775ca'"/>
+        </div>
+        USDC
+      </button>
+      <button class="tok-tab" data-token="PYUSD">
+        <div class="tt-ico">
+          <img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo/logo.png"
+               width="20" height="20" alt="PYUSD" style="border-radius:50%;display:block;object-fit:cover"
+               onerror="this.src='https://assets.coingecko.com/coins/images/31212/small/PYUSD_Logo_%282%29.png'"/>
+        </div>
+        PYUSD
+      </button>
+    </div>
+
+    <!-- Available -->
+    <div class="send-avail-row">
+      <span class="sar-label">Available</span>
+      <span id="send-bal-display" class="sar-val">—</span>
+      <span id="send-bal-token" class="sar-tok">SOL</span>
+    </div>
+
+    <!-- Amount box -->
+    <div class="send-amount-box">
+      <div class="sab-top">
+        <span class="sab-cur" id="sab-cur-label">SOL</span>
+        <button class="sab-max" id="qb-max">MAX</button>
+      </div>
+      <div class="sab-input-row">
+        <input type="number" id="send-amount" class="sab-inp" placeholder="0" min="0.000001" step="any" autocomplete="off"/>
+      </div>
+      <div class="sab-usd" id="send-usd-est">≈ $0.00 USD</div>
+    </div>
+
+    <!-- Quick amounts -->
+    <div class="send-quick" id="send-quick-row">
+      <button class="sq-btn" data-amount="1">1</button>
+      <button class="sq-btn" data-amount="5">5</button>
+      <button class="sq-btn" data-amount="10">10</button>
+      <button class="sq-btn" data-amount="25">25</button>
+      <button class="sq-btn" data-amount="50">50</button>
+      <button class="sq-btn" data-amount="100">100</button>
+    </div>
+
+    <!-- Recipient -->
+    <div class="send-to-box">
+      <div class="stb-label">To</div>
+      <input type="text" id="send-recipient" class="stb-inp" placeholder="Solana wallet address…" autocomplete="off" spellcheck="false"/>
+    </div>
+
+    <!-- Fee note -->
+    <div class="send-fee-note">
+      <svg viewBox="0 0 24 24" style="width:13px;height:13px;fill:none;stroke:currentColor;stroke-width:2;flex-shrink:0"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span id="fee-note-text">~0.000005 SOL network fee · No wallet fee · No token fee</span>
+    </div>
+
+    <div id="send-form-error" class="err-box hidden"></div>
+    <button id="btn-estimate-fee" class="btn-send-cta">Review Transaction <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+  </div>
+
+  <!-- STEP 2: PREVIEW -->
+  <div id="send-step-preview" class="send-preview-wrap hidden">
+    <div class="sp-hero">
+      <div class="sp-coin sol-col" id="sp-coin-icon"><svg viewBox="0 0 646 646" width="28" height="28"><path fill="white" d="M108.53 478.77a17.6 17.6 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="white" d="M108.53 77.78a18.05 18.05 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="white" d="M523.21 278.27a17.6 17.6 0 00-12.45-5.16H32.7a8.8 8.8 0 00-6.22 15.02l81.55 81.55a17.6 17.6 0 0012.45 5.16h477.71a8.8 8.8 0 006.22-15.02z"/></svg></div>
+      <div class="sp-amount" id="preview-amount">—</div>
+      <div class="sp-usd-est" id="preview-usd"></div>
+      <div class="sp-to"><span class="sp-to-lbl">To</span><span id="preview-recipient" class="sp-to-addr">—</span></div>
+    </div>
+    <div class="sp-breakdown">
+      <div class="spb-row"><span class="spb-key">Network fee</span><div class="spb-val"><span id="preview-fee" class="spb-fee">~0.000005 SOL</span><span id="preview-fee-usd" class="spb-fee-usd"></span></div></div>
+      <div class="spb-row"><span class="spb-key">Wallet fee</span><span class="spb-free">FREE ✓</span></div>
+      <div class="spb-row"><span class="spb-key">Token fee</span><span class="spb-free">FREE ✓</span></div>
+      <div class="spb-sep"></div>
+      <div class="spb-row spb-total"><span>Amount sending</span><span id="preview-total">—</span></div>
+      <div class="spb-row spb-remain"><span>Remaining balance</span><span id="preview-balance">—</span></div>
+    </div>
+    <div id="send-preview-warning" class="err-box hidden"></div>
+    <div class="sp-actions">
+      <button id="btn-send-back" class="btn-outline">← Edit</button>
+      <button id="btn-confirm-send" class="btn-confirm-send"><svg viewBox="0 0 24 24"><path d="M22 2L11 13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>Send Now</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: RESULT -->
+  <div id="send-step-result" class="send-result-wrap hidden">
+    <div id="send-result-success" class="hidden">
+      <div class="sr-anim">
+        <div class="sr-ring sr-ring1"></div><div class="sr-ring sr-ring2"></div>
+        <div class="sr-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+      </div>
+      <h2 class="sr-title">Sent Successfully!</h2>
+      <p class="sr-sub" id="sr-sub-text">Transaction broadcast to Solana.</p>
+      <div class="sr-sig-box">
+        <div class="srb-lbl">Transaction Signature</div>
+        <div class="srb-row"><span id="result-signature" class="srb-val">—</span><button id="btn-copy-sig" class="srb-copy">⧉</button></div>
+      </div>
+      <a id="result-explorer-link" href="#" target="_blank" rel="noopener noreferrer" class="sr-explorer">
+        <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        View on Solana Explorer
+      </a>
+    </div>
+    <div id="send-result-error" class="hidden">
+      <div class="sr-fail-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+      <h2 class="sr-title">Transaction Failed</h2>
+      <p id="result-error-msg" style="color:#f0516e;font-size:.875rem;max-width:280px;text-align:center">Something went wrong.</p>
+    </div>
+    <button id="btn-send-another" class="btn-outline" style="width:100%;margin-top:1.25rem">Send Another</button>
+  </div>
+</section>
+
+<!-- ══ RECEIVE ══ -->
+<section id="screen-receive" class="screen">
+  <div class="topbar"><button class="tb-back" data-back="home"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><span class="tb-title">Receive</span><div style="width:34px"></div></div>
+  <div class="scroll-wrap">
+    <p style="color:var(--t2);font-size:.875rem;margin-bottom:1rem;text-align:center">Share your address to receive SOL, USDC, or PYUSD.</p>
+    <div class="recv-card">
+      <div class="qr-frame">
+        <canvas id="qr-canvas"></canvas>
+        <p id="qr-loading">Generating…</p>
+      </div>
+      <div class="recv-addr" id="receive-address-display">—</div>
+    </div>
+    <div class="recv-actions">
+      <button id="btn-copy-address" class="btn-green"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy</button>
+      <button id="btn-share-address" class="btn-outline"><svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>Share</button>
+    </div>
+    <p style="color:var(--t3);font-size:.75rem;text-align:center">Solana network only · Works for all SPL tokens</p>
+  </div>
+</section>
+
+<!-- ══ HISTORY ══ -->
+<section id="screen-history" class="screen">
+  <div class="topbar"><button class="tb-back" data-back="home"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><span class="tb-title">Activity</span><button class="hh-icon" id="btn-refresh-history"><svg viewBox="0 0 24 24"><path d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg></button></div>
+  <div class="scroll-wrap">
+    <div id="history-list"><div class="tx-empty">Loading…</div></div>
+    <div id="history-pagination" class="pag hidden"><button id="btn-hist-prev" class="btn-outline btn-sm">← Prev</button><span id="hist-page-info">Page 1</span><button id="btn-hist-next" class="btn-outline btn-sm">Next →</button></div>
+    <div style="height:5rem"></div>
+  </div>
+</section>
+
+<!-- ══ SETTINGS ══ -->
+<section id="screen-settings" class="screen">
+  <div class="topbar"><button class="tb-back" data-back="home"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button><span class="tb-title">Settings</span><div style="width:34px"></div></div>
+  <div class="scroll-wrap">
+    <div class="sg"><div class="sg-lbl">Wallet</div>
+      <div class="sg-row"><span>Address</span><span id="settings-address" class="sg-val mono">—</span></div>
+      <button id="btn-export-address" class="sg-btn"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg>Copy Address</button>
+    </div>
+    <div class="sg"><div class="sg-lbl">Network</div>
+      <div class="sg-row"><span>Current</span><span id="settings-network" class="net-badge devnet">Devnet</span></div>
+      <div class="sg-row"><span>RPC</span><span id="settings-rpc" class="sg-val mono sm">—</span></div>
+      <div class="net-presets">
+        <button class="np" data-rpc="https://api.devnet.solana.com" data-net="devnet">Devnet</button>
+        <button class="np" data-rpc="https://api.testnet.solana.com" data-net="testnet">Testnet</button>
+        <button class="np mainnet-np" data-rpc="https://api.mainnet-beta.solana.com" data-net="mainnet-beta">⚡ Mainnet</button>
+      </div>
+      <div class="field" style="margin-top:.75rem"><label>Custom RPC</label><input type="url" id="input-custom-rpc" class="inp" placeholder="https://…"/></div>
+      <button id="btn-save-rpc" class="sg-btn"><svg viewBox="0 0 24 24"><path d="M19 21H5a2 2 0 01-2-2V5a2 2 0 012-2h11l5 5v11a2 2 0 01-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>Save RPC</button>
+    </div>
+    <div class="sg"><div class="sg-lbl">Security</div>
+      <button id="btn-show-privkey" class="sg-btn warn-btn"><svg viewBox="0 0 24 24"><path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg>Export Private Key</button>
+      <div id="privkey-display-area" class="hidden">
+        <div class="warn-box" style="margin:.65rem 0;font-size:.8rem">⚠️ Never share. Full wallet access.</div>
+        <div class="sig-block"><label>Key (Base58)</label><div class="sig-line"><span id="privkey-display" class="sig-val">—</span><button id="btn-copy-privkey" class="ico-copy">⧉</button></div></div>
+        <button id="btn-hide-privkey" class="btn-outline btn-sm" style="margin-top:.5rem">Hide</button>
+      </div>
+    </div>
+    <div class="sg danger-sg"><div class="sg-lbl danger-lbl">Danger Zone</div>
+      <p class="sg-note">SOL stays on-chain. Restore with your phrase.</p>
+      <button id="btn-remove-wallet" class="btn-danger"><svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2"/></svg>Remove Wallet</button>
+    </div>
+    <div style="height:5rem"></div>
+  </div>
+</section>
+
+<!-- MODALS -->
+<div id="modal-loading" class="modal-overlay hidden"><div class="modal-box modal-loading"><div class="loader"><div></div><div></div><div></div></div><p id="modal-loading-text">Please wait…</p></div></div>
+<div id="modal-alert" class="modal-overlay hidden"><div class="modal-box"><h3 id="modal-alert-title">Notice</h3><p id="modal-alert-body"></p><div class="modal-btns"><button id="modal-alert-cancel" class="btn-outline btn-sm hidden">Cancel</button><button id="modal-alert-ok" class="btn-green btn-sm">OK</button></div></div></div>
+<div id="toast-container"></div>
+
+</div>
+<script src="frontend/app.js"></script>
+</body>
+</html>
+      
