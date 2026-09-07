@@ -216,33 +216,14 @@ async function apiPost(path, body) {
   return d;
 }
 
-// ─ Backend API helpers ────────────────────────────────────────────────────────
-async function apiGet(path) {
-  const r = await fetch(API+path, {signal:AbortSignal.timeout(10000)});
-  const d = await r.json();
-  if (!r.ok) throw new Error(d.message||`API ${r.status}`);
-  return d;
-}
-async function apiPost(path, body) {
-  const r = await fetch(API+path, {
-    method:'POST', headers:{'Content-Type':'application/json'},
-    body:JSON.stringify(body), signal:AbortSignal.timeout(15000),
-  });
-  const d = await r.json();
-  if (!r.ok) throw new Error(d.message||`API ${r.status}`);
-  return d;
-}
+// ─ API — direct Solana RPC, no backend required ──────────────────────────────
 
-// ─ API functions — direct RPC (backend as optional enhancement) ──────────────
-
-/** SOL balance via direct RPC */
 async function getBalance(address) {
   const conn = getConn();
   const lamports = await conn.getBalance(new w3.PublicKey(address), 'confirmed');
   return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
 }
 
-/** Fee estimate — fixed 0.000005 SOL, no backend needed */
 async function estimateFee(from, to, amountSol) {
   const bal = await getBalance(from);
   const amount = parseFloat(amountSol);
@@ -260,13 +241,10 @@ async function estimateFee(from, to, amountSol) {
   };
 }
 
-/** Broadcast signed tx via direct RPC */
 async function broadcastTx(b64) {
   const conn = getConn();
   const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-  const sig = await conn.sendRawTransaction(bytes, {
-    skipPreflight: false, preflightCommitment: 'confirmed',
-  });
+  const sig = await conn.sendRawTransaction(bytes, {skipPreflight:false, preflightCommitment:'confirmed'});
   await conn.confirmTransaction(sig, 'confirmed');
   const { network } = loadNet();
   return {
@@ -275,12 +253,10 @@ async function broadcastTx(b64) {
   };
 }
 
-/** Transaction history via direct RPC */
 async function getTxHistory(address, limit, offset) {
   try {
     const conn = getConn();
-    const pubkey = new w3.PublicKey(address);
-    const sigs = await conn.getSignaturesForAddress(pubkey, { limit: Math.min(limit + offset, 50) });
+    const sigs = await conn.getSignaturesForAddress(new w3.PublicKey(address), { limit: Math.min(limit + offset, 50) });
     const slice = sigs.slice(offset, offset + limit);
     const { network } = loadNet();
     return {
@@ -296,15 +272,10 @@ async function getTxHistory(address, limit, offset) {
       })),
       count: slice.length,
     };
-  } catch(_) {
-    return { transactions: [], count: 0 };
-  }
+  } catch(_) { return { transactions: [], count: 0 }; }
 }
 
-/** QR code — local canvas fallback */
-const getQrCode = () => Promise.resolve(null);}
-
-const getQrCode = a => apiGet(`/wallet/qr/${a}`).catch(()=>null);
+const getQrCode = () => Promise.resolve(null);
 
 // ─ Market data (CoinGecko — direct browser, public API) ─────────────────────
 async function fetchMarketData() {
