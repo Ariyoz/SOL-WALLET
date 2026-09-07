@@ -1,0 +1,48 @@
+[package]
+name    = "wallet-core"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+# Solana — 2.3.x matches what's in the cache
+solana-sdk             = "2.3"
+solana-client          = "2.3"
+solana-rpc-client      = "2.3"
+solana-rpc-client-api  = "2.3"
+# Non-deprecated system program instructions
+solana-system-interface = "1.0"
+
+# BIP-39 mnemonic generation
+bip39 = "2"
+
+# SLIP-0010 ed25519 HD key derivation
+ed25519-dalek-bip32 = "0.3"
+
+# Zeroize sensitive key material after use
+zeroize = "1"
+
+# OS CSPRNG for entropy generation
+rand = { version = "0.8", features = ["std", "getrandom"] }
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Serialisation
+serde      = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+# Error handling
+thiserror = "1"
+anyhow    = "1"
+
+# Logging
+tracing = "0.1"
+
+# Base58
+bs58 = "0.5"
+
+# Timestamps on transaction records
+chrono = { version = "0.4", features = ["serde"] }
+
+[dev-dependencies]
+tokio = { version = "1", features = ["full"] }

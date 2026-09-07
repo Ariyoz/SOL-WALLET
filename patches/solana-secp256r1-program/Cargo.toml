@@ -1,0 +1,16 @@
+[package]
+name    = "solana-secp256r1-program"
+version = "2.2.4"
+edition = "2021"
+description = "Stub — OpenSSL-free patch for Windows builds of the SOL wallet."
+license = "Apache-2.0"
+
+[lib]
+name = "solana_secp256r1_program"
+path = "src/lib.rs"
+
+[dependencies]
+bytemuck              = { version = "1", features = ["derive"] }
+solana-sdk-ids        = "2.2"
+solana-precompile-error = "2.2"
+solana-feature-set    = "2.2"

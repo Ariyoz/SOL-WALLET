@@ -1,0 +1,32 @@
+[package]
+name = "storage"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wallet-core = { path = "../wallet-core" }
+
+# SQLx with SQLite (dev) and PostgreSQL (prod)
+# No macros/migrate features — we use raw_sql and include_str! for migrations.
+sqlx = { version = "0.8", features = [
+    "runtime-tokio-rustls",
+    "sqlite",
+    "chrono",
+] }
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Serialization
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+
+# Time
+chrono = { version = "0.4", features = ["serde"] }
+
+# Errors
+thiserror = "1"
+anyhow    = "1"
+
+# Logging
+tracing = "0.1"

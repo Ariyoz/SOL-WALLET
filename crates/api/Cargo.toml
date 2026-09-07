@@ -1,0 +1,49 @@
+[package]
+name    = "api"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "solana-wallet-api"
+path = "src/main.rs"
+
+[dependencies]
+wallet-core = { path = "../wallet-core" }
+storage     = { path = "../storage" }
+
+# Web framework
+axum       = { version = "0.7", features = ["macros"] }
+tower      = "0.5"
+tower-http = { version = "0.5", features = ["cors", "trace", "timeout"] }
+
+# Async
+tokio = { version = "1", features = ["full"] }
+
+# Serialisation
+serde       = { version = "1", features = ["derive"] }
+serde_json  = "1"
+bincode     = "1"
+
+# Config
+dotenvy = "0.15"
+
+# HTTP client (pure-Rust TLS — no OpenSSL needed on Windows)
+reqwest = { version = "0.12", features = ["json", "rustls-tls-webpki-roots"], default-features = false }
+
+# Errors
+thiserror = "1"
+anyhow    = "1"
+
+# Logging
+tracing            = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# QR code
+qrcode = "0.14"
+image  = "0.25"
+base64 = "0.22"
+
+# Solana
+solana-sdk                             = "2.3"
+solana-client                          = "2.3"
+solana-transaction-status-client-types = "2.3"

@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: solana-wallet-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    # Render assigns PORT automatically — map it to API_PORT
+    envVars:
+      - key: API_HOST
+        value: "0.0.0.0"
+      - key: API_PORT
+        fromGroup: render-port   # Render injects PORT; we map it
+        value: "3000"
+      - key: RUST_LOG
+        value: "info"
+      - key: SOLANA_NETWORK
+        value: "mainnet-beta"
+      - key: SOLANA_RPC_URL
+        value: "https://api.mainnet-beta.solana.com"
+      - key: DATABASE_URL
+        value: "sqlite:./wallet.db"
+    healthCheckPath: /health

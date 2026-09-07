@@ -1,0 +1,11 @@
+target/
+frontend/
+*.db
+*.db-wal
+*.db-shm
+.env
+.git/
+.gitignore
+*.ps1
+*.md
+wallet.db
