@@ -9,6 +9,52 @@
 <link rel="stylesheet" href="frontend/style.css"/>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'><rect width='40' height='40' rx='10' fill='%2314f195'/><path d='M8 27h24l-5 6H3zm0-10h24l-5 6H3zm5-10h24l-5 6H8z' fill='%230a0a0f'/></svg>">
 <script src="frontend/qrcode.min.js"></script>
+<script>
+// Minimal Buffer polyfill for browser — required by solana-web3.js
+// Must be a Uint8Array subclass so web3.js internal checks pass
+(function() {
+  if (typeof window.Buffer !== 'undefined') return;
+
+  class Buffer extends Uint8Array {
+    static from(data, encoding) {
+      if (typeof data === 'string') {
+        if (encoding === 'hex') {
+          const b = new Buffer(data.length / 2);
+          for (let i = 0; i < data.length; i += 2) b[i/2] = parseInt(data.slice(i,i+2),16);
+          return b;
+        }
+        const enc = new TextEncoder().encode(data);
+        return Buffer.from(enc.buffer);
+      }
+      if (data instanceof ArrayBuffer) { const b = new Buffer(data.byteLength); b.set(new Uint8Array(data)); return b; }
+      if (ArrayBuffer.isView(data)) { const b = new Buffer(data.byteLength); b.set(new Uint8Array(data.buffer, data.byteOffset, data.byteLength)); return b; }
+      if (Array.isArray(data) || data[Symbol.iterator]) { const a = [...data]; const b = new Buffer(a.length); b.set(a); return b; }
+      return new Buffer(0);
+    }
+    static alloc(size, fill) { const b = new Buffer(size); if (fill !== undefined) b.fill(fill); return b; }
+    static allocUnsafe(size) { return new Buffer(size); }
+    static isBuffer(obj) { return obj instanceof Buffer || obj instanceof Uint8Array; }
+    static concat(list, len) {
+      const total = len !== undefined ? len : list.reduce((s,b)=>s+b.length,0);
+      const out = new Buffer(total); let off = 0;
+      for (const b of list) { out.set(b, off); off += b.length; } return out;
+    }
+    toString(encoding) {
+      if (encoding === 'hex') return Array.from(this).map(b=>b.toString(16).padStart(2,'0')).join('');
+      if (encoding === 'base64') return btoa(String.fromCharCode(...this));
+      return new TextDecoder().decode(this);
+    }
+    readUInt32BE(offset) { return (this[offset]<<24|this[offset+1]<<16|this[offset+2]<<8|this[offset+3])>>>0; }
+    writeUInt32BE(val, offset) { this[offset]=val>>>24; this[offset+1]=val>>>16&0xff; this[offset+2]=val>>>8&0xff; this[offset+3]=val&0xff; }
+    slice(start, end) { return Buffer.from(super.slice(start, end)); }
+  }
+
+  window.Buffer = Buffer;
+  // globals web3.js expects
+  if (typeof window.global === 'undefined') window.global = window;
+  if (typeof window.process === 'undefined') window.process = { env: {}, browser: true, version: '' };
+})();
+</script>
 <script src="frontend/vendor/solana-web3.js"></script>
 <script src="frontend/vendor/bs58.js"></script>
 <script src="frontend/vendor/bip39.js"></script>
