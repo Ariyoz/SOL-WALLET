@@ -1263,7 +1263,7 @@ function _onTokenChange() {
   if (feeNote) {
     feeNote.textContent = isSOL
       ? '~0.000005 SOL network fee · No wallet fee'
-      : '~0.000005 SOL fee (if recipient has token account) or ~0.00205 SOL (if creating new account)';
+      : '~0.000005 SOL network fee · No token fee · FREE transfer';
   }
 
   // Clear amount input and USD estimate
@@ -1395,37 +1395,15 @@ async function previewSend() {
       const b = await getBalance(S.kp.publicKey.toString());
       S.solBal = b.balance_sol || 0;
     } catch (_) {}
-
-    // Check if recipient already has a token account
-    const mintAddr = currentToken === 'USDC'
-      ? SPL_TOKENS.USDC[loadNet().network === 'mainnet-beta' ? 'mainnet' : 'devnet']
-      : SPL_TOKENS.PYUSD[loadNet().network === 'mainnet-beta' ? 'mainnet' : 'devnet'];
-    let recipientHasAccount = false;
-    try {
-      const r = await fetch(`${API}/rpc`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getTokenAccountsByOwner',
-          params:[to, { mint: mintAddr }, { encoding:'jsonParsed' }] }),
-        signal: AbortSignal.timeout(8000),
-      });
-      const j = await r.json();
-      recipientHasAccount = (j?.result?.value?.length || 0) > 0;
-    } catch (_) {}
-
-    const feeDisplay = recipientHasAccount
-      ? '~0.000005 SOL'
-      : '~0.00205 SOL (incl. token account creation)';
-    const minSol = recipientHasAccount ? 0.000015 : 0.003;
-
-    if (S.solBal < minSol) {
-      sendErr(`Need at least ${minSol} SOL for fees. Current: ${S.solBal.toFixed(6)} SOL`);
+    if (S.solBal < 0.000015) { // conservative: 5 lamports fee + possible ATA rent
+      sendErr(`Need at least 0.000015 SOL for network fee. Current: ${S.solBal.toFixed(6)} SOL`);
       return;
     }
 
     // Populate preview
     txt('preview-recipient', trunc(to, 8));
     txt('preview-amount',    `${amtFloat.toFixed(2)} ${currentToken}`);
-    txt('preview-fee',       feeDisplay);
+    txt('preview-fee',       '~0.000005 SOL');
     txt('preview-fee-usd',   '');
     txt('preview-total',     `${amtFloat.toFixed(2)} ${currentToken}`);
     txt('preview-balance',   `${Math.max(0, available - amtFloat).toFixed(2)} ${currentToken}`);
