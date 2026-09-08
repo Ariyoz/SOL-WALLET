@@ -720,20 +720,22 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   // Find recipient's actual token account from chain — don't assume derived ATA
   const toATA   = await findSourceTokenAccount(toPubkey.toString(), mintAddr, TOKEN_PROG_ID);
 
+  // Check if recipient's token account exists
+  const recipientHasAccount = toATA.toString() !== getATA(toPubkey, mintAddr, TOKEN_PROG_ID).toString();
+
   const tx = new w3.Transaction();
   tx.recentBlockhash      = blockhash;
   tx.feePayer             = fromPub;
   tx.lastValidBlockHeight = lastValidBlockHeight;
 
-  // Only create recipient ATA if they don't have any existing token account
-  const needCreateATA = toATA.toString() === getATA(toPubkey, mintAddr, TOKEN_PROG_ID).toString();
-  if (needCreateATA) {
-    // Use idempotent CreateATA (discriminator=1) — safe even if account exists
+  if (!recipientHasAccount) {
+    // Recipient has no token account — create one via idempotent ATA instruction
+    const derivedATA = getATA(toPubkey, mintAddr, TOKEN_PROG_ID);
     tx.add(new w3.TransactionInstruction({
       programId: ASSOC_PROG,
       keys: [
         { pubkey: fromPub,    isSigner: true,  isWritable: true  },
-        { pubkey: toATA,      isSigner: false, isWritable: true  },
+        { pubkey: derivedATA, isSigner: false, isWritable: true  },
         { pubkey: toPubkey,   isSigner: false, isWritable: false },
         { pubkey: mint,       isSigner: false, isWritable: false },
         { pubkey: SYS_PROG,   isSigner: false, isWritable: false },
