@@ -631,6 +631,9 @@ async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId
   // Fall back to ATA derivation
   return getATA(new w3.PublicKey(walletAddress), mintAddress, tokenProgramId);
 }
+
+/** Derive the Associated Token Account (ATA) address using raw bytes */
+function getATA(walletPubkey, mintAddress, tokenProgramId) {
   // Default to legacy token program — Token-2022 ATAs use Token-2022 program ID
   const TOKEN_PROG = new w3.PublicKey(tokenProgramId || 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
   const ASSOC_PROG = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
