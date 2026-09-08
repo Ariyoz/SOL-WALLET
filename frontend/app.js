@@ -720,8 +720,27 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   // Find recipient's actual token account from chain — don't assume derived ATA
   const toATA   = await findSourceTokenAccount(toPubkey.toString(), mintAddr, TOKEN_PROG_ID);
 
-  // Check if recipient's token account exists
-  const recipientHasAccount = toATA.toString() !== getATA(toPubkey, mintAddr, TOKEN_PROG_ID).toString();
+  // Recipient has an account if the lookup returned something different from the derived ATA
+  // OR if the derived ATA itself actually exists on-chain
+  const derivedATA   = getATA(toPubkey, mintAddr, TOKEN_PROG_ID);
+  const lookupDiffers = toATA.toString() !== derivedATA.toString();
+
+  // Also check if the derived ATA exists (it might match but already exist)
+  let derivedATAExists = false;
+  if (!lookupDiffers) {
+    try {
+      const r = await fetch(`${API}/rpc`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getAccountInfo',
+          params:[derivedATA.toString(), { encoding:'base64' }] }),
+        signal: AbortSignal.timeout(8000),
+      });
+      const j = await r.json();
+      derivedATAExists = j?.result?.value != null;
+    } catch (_) {}
+  }
+
+  const recipientHasAccount = lookupDiffers || derivedATAExists;
 
   const tx = new w3.Transaction();
   tx.recentBlockhash      = blockhash;
@@ -729,19 +748,18 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   tx.lastValidBlockHeight = lastValidBlockHeight;
 
   if (!recipientHasAccount) {
-    // Recipient has no token account — create one via idempotent ATA instruction
-    const derivedATA = getATA(toPubkey, mintAddr, TOKEN_PROG_ID);
+    // Recipient has no token account — create one
     tx.add(new w3.TransactionInstruction({
       programId: ASSOC_PROG,
       keys: [
-        { pubkey: fromPub,    isSigner: true,  isWritable: true  },
-        { pubkey: derivedATA, isSigner: false, isWritable: true  },
-        { pubkey: toPubkey,   isSigner: false, isWritable: false },
-        { pubkey: mint,       isSigner: false, isWritable: false },
-        { pubkey: SYS_PROG,   isSigner: false, isWritable: false },
+        { pubkey: fromPub,  isSigner: true,  isWritable: true  },
+        { pubkey: toATA,    isSigner: false, isWritable: true  },
+        { pubkey: toPubkey, isSigner: false, isWritable: false },
+        { pubkey: mint,     isSigner: false, isWritable: false },
+        { pubkey: SYS_PROG, isSigner: false, isWritable: false },
         { pubkey: TOKEN_PROG, isSigner: false, isWritable: false },
       ],
-      data: new Uint8Array([1]), // 1 = CreateIdempotent
+      data: new Uint8Array([1]), // CreateIdempotent
     }));
   }
 
