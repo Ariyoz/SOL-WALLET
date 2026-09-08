@@ -254,8 +254,17 @@ pub async fn send_transaction(
     let tx: Transaction = bincode::deserialize(&tx_bytes)
         .map_err(|e| ApiError::BadRequest(format!("Invalid transaction bytes: {e}")))?;
 
+    // Skip preflight — avoids rate-limit errors from api.mainnet-beta.solana.com
+    // simulation. The transaction will still fail on-chain if invalid.
+    use solana_client::rpc_config::RpcSendTransactionConfig;
+    let config = RpcSendTransactionConfig {
+        skip_preflight: true,
+        preflight_commitment: Some(solana_sdk::commitment_config::CommitmentLevel::Confirmed),
+        ..Default::default()
+    };
+
     // Try primary RPC client first, then fallback endpoints
-    let primary_result = state.rpc_client.send_transaction(&tx).await;
+    let primary_result = state.rpc_client.send_transaction_with_config(&tx, config).await;
 
     let signature = match primary_result {
         Ok(sig) => sig,
@@ -272,7 +281,7 @@ pub async fn send_transaction(
                 let rpc_body = serde_json::json!({
                     "jsonrpc": "2.0", "id": 1,
                     "method": "sendTransaction",
-                    "params": [b64_tx, {"encoding": "base64", "skipPreflight": false, "preflightCommitment": "confirmed"}]
+                    "params": [b64_tx, {"encoding": "base64", "skipPreflight": true, "preflightCommitment": "confirmed"}]
                 });
 
                 let mut last_err = err_str;
