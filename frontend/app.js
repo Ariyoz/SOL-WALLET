@@ -660,7 +660,7 @@ async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId
   // Fall back to ATA derivation
   return getATA(new w3.PublicKey(walletAddress), mintAddress, tokenProgramId);
 }
-}
+
 
 /** Derive the Associated Token Account (ATA) address using raw bytes */
 function getATA(walletPubkey, mintAddress, tokenProgramId) {
