@@ -701,7 +701,6 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   const ASSOC_PROG  = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
   const SYS_PROG    = w3.SystemProgram.programId;
   const SYSVAR_RENT = new w3.PublicKey('SysvarRent111111111111111111111111111111111');
-
   const mintAddr = getSplMint(symbol);
   if (!mintAddr) throw new Error(`Unknown token: ${symbol}`);
 
@@ -719,40 +718,18 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   // Find sender's actual token account from chain (not derived — avoids wrong ATA)
   const fromATA = await findSourceTokenAccount(fromPub.toString(), mintAddr, TOKEN_PROG_ID);
   // Derive recipient ATA (standard derivation is fine for destination)
-  const toATA   = getATA(toPubkey, mintAddr, TOKEN_PROG_ID);
-
-  // Check if destination ATA exists via backend /rpc proxy
-  const ataResp = await fetch(`${API}/rpc`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getAccountInfo',
-      params:[toATA.toString(), { encoding:'base64' }] }),
-    signal: AbortSignal.timeout(10000),
-  });
-  const ataJson = await ataResp.json();
-  const toATAExists = ataJson?.result?.value != null;
+  const toATA = getATA(toPubkey, mintAddr, TOKEN_PROG_ID);
 
   const tx = new w3.Transaction();
   tx.recentBlockhash      = blockhash;
   tx.feePayer             = fromPub;
   tx.lastValidBlockHeight = lastValidBlockHeight;
 
-  // Create destination ATA if needed
-  if (!toATAExists) {
-    tx.add(new w3.TransactionInstruction({
-      programId: ASSOC_PROG,
-      keys: [
-        { pubkey: fromPub,     isSigner: true,  isWritable: true  },
-        { pubkey: toATA,       isSigner: false, isWritable: true  },
-        { pubkey: toPubkey,    isSigner: false, isWritable: false },
-        { pubkey: mint,        isSigner: false, isWritable: false },
-        { pubkey: SYS_PROG,    isSigner: false, isWritable: false },
-        { pubkey: TOKEN_PROG,  isSigner: false, isWritable: false },
-        { pubkey: SYSVAR_RENT, isSigner: false, isWritable: false },
-      ],
-      data: new Uint8Array(0),
-    }));
-  }
+  // Note: We do NOT create the recipient's ATA here.
+  // The AToken program is a native Solana program that doesn't return
+  // account data via getAccountInfo, causing false "not found" errors.
+  // If the recipient doesn't have an ATA, the transfer will fail with a
+  // clear error message asking them to create their token account first.
 
   if (IS_TOKEN_2022) {
     // Token-2022 TransferChecked instruction (discriminator = 12)
