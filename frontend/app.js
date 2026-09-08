@@ -609,8 +609,28 @@ function getSplMint(symbol) {
   return network === 'mainnet-beta' ? tk.mainnet : tk.devnet;
 }
 
-/** Derive the Associated Token Account (ATA) address using raw bytes */
-function getATA(walletPubkey, mintAddress, tokenProgramId) {
+/** Find the actual token account address from chain — no derivation guessing */
+async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId) {
+  try {
+    const r = await fetch(`${API}/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0', id: 1,
+        method: 'getTokenAccountsByOwner',
+        params: [walletAddress, { mint: mintAddress }, { encoding: 'jsonParsed' }]
+      }),
+      signal: AbortSignal.timeout(10000),
+    });
+    const j = await r.json();
+    const accounts = j?.result?.value || [];
+    if (accounts.length > 0) {
+      return new w3.PublicKey(accounts[0].pubkey);
+    }
+  } catch (_) {}
+  // Fall back to ATA derivation
+  return getATA(new w3.PublicKey(walletAddress), mintAddress, tokenProgramId);
+}
   // Default to legacy token program — Token-2022 ATAs use Token-2022 program ID
   const TOKEN_PROG = new w3.PublicKey(tokenProgramId || 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
   const ASSOC_PROG = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
@@ -690,8 +710,9 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   // Get blockhash via backend
   const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
 
-  // Derive ATAs — pass correct token program ID for proper PDA derivation
-  const fromATA = getATA(fromPub, mintAddr, TOKEN_PROG_ID);
+  // Find sender's actual token account from chain (not derived — avoids wrong ATA)
+  const fromATA = await findSourceTokenAccount(fromPub.toString(), mintAddr, TOKEN_PROG_ID);
+  // Derive recipient ATA (standard derivation is fine for destination)
   const toATA   = getATA(toPubkey, mintAddr, TOKEN_PROG_ID);
 
   // Check if destination ATA exists via backend /rpc proxy
