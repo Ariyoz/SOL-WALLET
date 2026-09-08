@@ -639,7 +639,7 @@ async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId
 function getATA(walletPubkey, mintAddress, tokenProgramId) {
   // Default to legacy token program — Token-2022 ATAs use Token-2022 program ID
   const TOKEN_PROG = new w3.PublicKey(tokenProgramId || 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-  const ASSOC_PROG = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
+  const ASSOC_PROG = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
   const mint       = new w3.PublicKey(mintAddress);
 
   // Use toBytes() instead of toBuffer() — doesn't need Buffer polyfill
@@ -700,7 +700,7 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   const TOKEN_PROG  = new w3.PublicKey(TOKEN_PROG_ID);
   const SYS_PROG    = w3.SystemProgram.programId;
   // AToken program — native Solana program for creating Associated Token Accounts
-  const ASSOC_PROG  = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
+  const ASSOC_PROG  = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
   const mintAddr = getSplMint(symbol);
   if (!mintAddr) throw new Error(`Unknown token: ${symbol}`);
 
