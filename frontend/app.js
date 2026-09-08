@@ -533,7 +533,7 @@ async function sendRawTxFetch(serializedBytes) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 1, method: 'sendTransaction',
-        params: [b64, { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]
+        params: [b64, { encoding: 'base64', skipPreflight: true, preflightCommitment: 'confirmed' }]
       }),
       signal: AbortSignal.timeout(55000),
     });
@@ -1429,7 +1429,16 @@ async function execSend() {
     toast('Sent! 🚀', 'success', 5000);
     setTimeout(refreshHome, 3000);
   } catch (e) {
-    txt('result-error-msg', e.message || 'Transaction failed.');
+    // Make error message as specific as possible
+    let msg = e.message || 'Transaction failed.';
+    if (msg.includes('simulation failed')) {
+      msg = 'Transaction simulation failed — check your token balance and try again.';
+    } else if (msg.includes('insufficient')) {
+      msg = 'Insufficient balance to complete this transaction.';
+    } else if (msg.includes('blockhash')) {
+      msg = 'Transaction expired — please try again.';
+    }
+    txt('result-error-msg', msg);
     hide('send-result-success');
     show('send-result-error');
     hide('send-step-preview');
