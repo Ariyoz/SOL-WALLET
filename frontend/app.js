@@ -533,7 +533,7 @@ async function sendRawTxFetch(serializedBytes) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         jsonrpc: '2.0', id: 1, method: 'sendTransaction',
-        params: [b64, { encoding: 'base64', skipPreflight: true, preflightCommitment: 'confirmed' }]
+        params: [b64, { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]
       }),
       signal: AbortSignal.timeout(55000),
     });
@@ -609,13 +609,20 @@ function getSplMint(symbol) {
   return network === 'mainnet-beta' ? tk.mainnet : tk.devnet;
 }
 
-/** Derive the Associated Token Account (ATA) address */
-function getATA(walletPubkey, mintAddress) {
-  const TOKEN_PROG = new w3.PublicKey('TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
+/** Derive the Associated Token Account (ATA) address using raw bytes */
+function getATA(walletPubkey, mintAddress, tokenProgramId) {
+  // Default to legacy token program — Token-2022 ATAs use Token-2022 program ID
+  const TOKEN_PROG = new w3.PublicKey(tokenProgramId || 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
   const ASSOC_PROG = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
   const mint       = new w3.PublicKey(mintAddress);
+
+  // Use toBytes() instead of toBuffer() — doesn't need Buffer polyfill
+  const walletBytes = walletPubkey.toBytes();
+  const tokenBytes  = TOKEN_PROG.toBytes();
+  const mintBytes   = mint.toBytes();
+
   const [ata] = w3.PublicKey.findProgramAddressSync(
-    [walletPubkey.toBuffer(), TOKEN_PROG.toBuffer(), mint.toBuffer()],
+    [walletBytes, tokenBytes, mintBytes],
     ASSOC_PROG
   );
   return ata;
@@ -683,9 +690,9 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   // Get blockhash via backend
   const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
 
-  // Derive ATAs using web3.js (needs Buffer polyfill — already loaded)
-  const fromATA = getATA(fromPub, mintAddr);
-  const toATA   = getATA(toPubkey, mintAddr);
+  // Derive ATAs — pass correct token program ID for proper PDA derivation
+  const fromATA = getATA(fromPub, mintAddr, TOKEN_PROG_ID);
+  const toATA   = getATA(toPubkey, mintAddr, TOKEN_PROG_ID);
 
   // Check if destination ATA exists via backend /rpc proxy
   const ataResp = await fetch(`${API}/rpc`, {
