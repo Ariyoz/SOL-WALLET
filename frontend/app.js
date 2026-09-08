@@ -226,43 +226,31 @@ async function apiPost(path, body) {
 // ─ API — direct Solana RPC, no backend required ──────────────────────────────
 
 async function getBalance(address) {
-  // 1) Try the Render backend first (also handles CORS proxy for RPC)
+  // 1) Render backend /wallet/balance
   try {
     const r = await fetch(`${API}/wallet/balance/${address}`, {signal: AbortSignal.timeout(15000)});
-    if (!r.ok) throw new Error('backend error');
-    const d = await r.json();
-    return { balance_sol: d.balance_sol || 0, balance_lamports: d.balance_lamports || 0 };
+    if (r.ok) {
+      const d = await r.json();
+      return { balance_sol: d.balance_sol || 0, balance_lamports: d.balance_lamports || 0 };
+    }
   } catch (_) { /* fall through */ }
 
-  // 2) Try direct JSON-RPC POST to CORS-friendly public endpoints
-  const { rpcUrl } = loadNet();
-  const endpointsToTry = [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a)=>a.indexOf(v)===i);
-  for (const rpc of endpointsToTry) {
-    try {
-      const r = await fetch(rpc, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0', id: 1, method: 'getBalance',
-          params: [address, { commitment: 'confirmed' }]
-        }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!r.ok) continue;
-      const json = await r.json();
-      const lamports = json?.result?.value ?? 0;
-      return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
-    } catch (_) { /* try next */ }
-  }
-
-  // 3) Last resort: web3.js Connection (may fail on some hosts due to CORS)
+  // 2) /rpc proxy fallback
   try {
-    const conn = getConn();
-    const lamports = await conn.getBalance(new w3.PublicKey(address), 'confirmed');
-    return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
-  } catch (_) { /* give up */ }
+    const r = await fetch(`${API}/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getBalance', params:[address, { commitment:'confirmed' }] }),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (r.ok) {
+      const j = await r.json();
+      const lamports = j?.result?.value ?? 0;
+      return { balance_sol: lamports / 1_000_000_000, balance_lamports: lamports };
+    }
+  } catch (_) { /* fall through */ }
 
-  // All failed — return 0 so the UI shows $0 instead of crashing
+  // All failed
   return { balance_sol: 0, balance_lamports: 0, _error: true };
 }
 
@@ -460,41 +448,34 @@ function loadKp() {
 // ─ Connection helper ─────────────────────────────────────────────────────────
 
 /** Get the first CORS-friendly RPC URL that responds successfully */
+/** Returns the best RPC URL to use — always prefers the backend proxy */
 async function getWorkingRpcUrl() {
-  if (S.workingRpc) return S.workingRpc;
-
-  const { rpcUrl, network } = loadNet();
-  const candidates = network === 'mainnet-beta'
-    ? [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a) => a.indexOf(v) === i)
-    : [rpcUrl];
-
-  for (const rpc of candidates) {
-    try {
-      const r = await fetch(rpc, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getLatestBlockhash', params:[{ commitment:'confirmed' }] }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!r.ok) continue;
-      const j = await r.json();
-      if (j?.error || !j?.result?.value?.blockhash) continue;
-      S.workingRpc = rpc;
-      return rpc;
-    } catch (_) { /* try next */ }
-  }
-  // Nothing found — fall back to user's configured endpoint (may fail)
-  return rpcUrl;
+  // Always use backend /rpc proxy — it never 403s from browser
+  return `${API}/rpc-passthrough`;
 }
 
-/** Fetch the latest blockhash — tries backend first, then raw RPC fetch */
+/** Make a raw JSON-RPC call via the backend proxy */
+async function rpcCall(method, params, timeoutMs = 12000) {
+  const r = await fetch(`${API}/rpc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }),
+    signal: AbortSignal.timeout(timeoutMs),
+  });
+  if (!r.ok) throw new Error(`Backend RPC error: ${r.status}`);
+  const j = await r.json();
+  if (j?.error) throw new Error(j.error.message || 'RPC error');
+  return j.result;
+}
+
+/** Fetch the latest blockhash — always via backend, never direct RPC */
 async function fetchLatestBlockhash() {
-  // Use cached blockhash if fresh (< 30s) — avoids cold start delay
+  // Use cached blockhash if fresh (< 30s)
   if (S._cachedBlockhash && (Date.now() - S._cachedBlockhash.ts) < 30000) {
     return { blockhash: S._cachedBlockhash.blockhash, lastValidBlockHeight: S._cachedBlockhash.lastValidBlockHeight };
   }
 
-  // 1) Try dedicated /blockhash endpoint (clean, fast)
+  // 1) Dedicated /blockhash endpoint
   try {
     const r = await fetch(`${API}/blockhash`, { signal: AbortSignal.timeout(55000) });
     if (r.ok) {
@@ -506,7 +487,7 @@ async function fetchLatestBlockhash() {
     }
   } catch (_) { /* fall through */ }
 
-  // 2) Try generic /rpc proxy on the backend (CORS-safe, works once Render deploys)
+  // 2) /rpc proxy fallback
   try {
     const r = await fetch(`${API}/rpc`, {
       method: 'POST',
@@ -517,36 +498,21 @@ async function fetchLatestBlockhash() {
     if (r.ok) {
       const j = await r.json();
       if (j?.result?.value?.blockhash) {
-        return { blockhash: j.result.value.blockhash, lastValidBlockHeight: j.result.value.lastValidBlockHeight };
+        const d = { blockhash: j.result.value.blockhash, lastValidBlockHeight: j.result.value.lastValidBlockHeight };
+        S._cachedBlockhash = { ...d, ts: Date.now() };
+        return d;
       }
     }
   } catch (_) { /* fall through */ }
 
-  // 3) Raw fetch to CORS-friendly RPC endpoints (last resort)
-  const { rpcUrl } = loadNet();
-  const candidates = [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a) => a.indexOf(v) === i);
-  for (const rpc of candidates) {
-    try {
-      const r = await fetch(rpc, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getLatestBlockhash', params:[{ commitment:'confirmed' }] }),
-        signal: AbortSignal.timeout(10000),
-      });
-      if (!r.ok) continue;
-      const j = await r.json();
-      if (j?.error || !j?.result?.value?.blockhash) continue;
-      return { blockhash: j.result.value.blockhash, lastValidBlockHeight: j.result.value.lastValidBlockHeight };
-    } catch (_) { /* try next */ }
-  }
-  throw new Error('Could not fetch blockhash from any endpoint');
+  throw new Error('Could not fetch blockhash — backend unavailable');
 }
 
-/** Send a raw signed transaction — tries backend first, then raw RPC fetch */
+/** Send a raw signed transaction — tries backend first, then /rpc proxy */
 async function sendRawTxFetch(serializedBytes) {
   const b64 = btoa(String.fromCharCode(...serializedBytes));
 
-  // 1) Try Render backend /transaction/send
+  // 1) Try Render backend /transaction/send (stores in DB)
   try {
     const r = await fetch(`${API}/transaction/send`, {
       method: 'POST',
@@ -560,7 +526,7 @@ async function sendRawTxFetch(serializedBytes) {
     }
   } catch (_) { /* fall through */ }
 
-  // 2) Try generic /rpc proxy on the backend
+  // 2) Try /rpc proxy sendTransaction
   try {
     const r = await fetch(`${API}/rpc`, {
       method: 'POST',
@@ -574,23 +540,11 @@ async function sendRawTxFetch(serializedBytes) {
     if (r.ok) {
       const j = await r.json();
       if (j?.result && !j?.error) return j.result;
+      if (j?.error) throw new Error(j.error.message || 'Send failed');
     }
-  } catch (_) { /* fall through */ }
+  } catch (e) { throw e; }
 
-  // 3) Raw RPC fallback
-  const rpcUrl = await getWorkingRpcUrl();
-  const r = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      jsonrpc: '2.0', id: 1, method: 'sendTransaction',
-      params: [b64, { encoding: 'base64', skipPreflight: false, preflightCommitment: 'confirmed' }]
-    }),
-    signal: AbortSignal.timeout(20000),
-  });
-  const j = await r.json();
-  if (j?.error) throw new Error(j.error.message || 'Send failed');
-  return j.result;
+  throw new Error('Transaction broadcast failed');
 }
 
 // Sync fallback for non-critical uses
@@ -667,49 +621,22 @@ function getATA(walletPubkey, mintAddress) {
   return ata;
 }
 
-/** Fetch SPL token balance. Returns { uiAmount: number } or null */
+/** Fetch SPL token balance via /rpc proxy only — no direct RPC calls */
 async function getSplBalance(walletPubkey, mintAddress) {
   const ata = getATA(walletPubkey, mintAddress);
-  const ataStr = ata.toString();
-
-  // 1) Try via Render backend (CORS-safe)
   try {
-    const r = await fetch(`${API}/wallet/token-balance/${walletPubkey.toString()}/${mintAddress}`,
-      { signal: AbortSignal.timeout(10000) });
-    if (r.ok) {
-      const d = await r.json();
-      if (d?.uiAmount !== undefined) return { uiAmount: d.uiAmount };
-    }
-  } catch (_) { /* fall through */ }
-
-  // 2) Direct JSON-RPC to CORS-friendly endpoints
-  const { rpcUrl } = loadNet();
-  const endpointsToTry = [rpcUrl, ...FALLBACK_RPCS].filter((v,i,a)=>a.indexOf(v)===i);
-  for (const rpc of endpointsToTry) {
-    try {
-      const r = await fetch(rpc, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0', id: 1, method: 'getTokenAccountBalance',
-          params: [ataStr, { commitment: 'confirmed' }]
-        }),
-        signal: AbortSignal.timeout(8000),
-      });
-      if (!r.ok) continue;
-      const json = await r.json();
-      if (json?.result?.value) return json.result.value;
-    } catch (_) { /* try next */ }
-  }
-
-  // 3) web3.js fallback
-  try {
-    const conn = getConn();
-    const info = await conn.getTokenAccountBalance(ata, 'confirmed');
-    return info.value;
-  } catch (_) {
-    return null;
-  }
+    const r = await fetch(`${API}/rpc`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getTokenAccountBalance',
+        params:[ata.toString(), { commitment:'confirmed' }] }),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (!r.ok) return null;
+    const j = await r.json();
+    if (j?.result?.value) return j.result.value;
+  } catch (_) {}
+  return null;
 }
 
 /**
