@@ -8,6 +8,9 @@
  */
 'use strict';
 
+const APP_VERSION = '2.0.1'; // cache bust - findSourceTokenAccount fix
+console.log('[SOL Wallet] Version:', APP_VERSION);
+
 const API        = 'https://sol-wallet-1.onrender.com'; // Render backend
 const BACKEND_OK  = true; // backend is live
 
