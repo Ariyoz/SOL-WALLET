@@ -725,13 +725,13 @@ function writeU64LE(arr, value, offset) {
 async function signSplTransfer(toWalletAddress, symbol, amount) {
   if (!S.kp) throw new Error('No wallet loaded');
 
-  // PYUSD uses Token-2022, USDC uses legacy Token program
-  const IS_TOKEN_2022  = symbol === 'PYUSD';
-  const TOKEN_PROG     = new w3.PublicKey(IS_TOKEN_2022
+  const IS_TOKEN_2022 = symbol === 'PYUSD';
+  const TOKEN_PROG_ID = IS_TOKEN_2022
     ? 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'
-    : 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
-  const ASSOC_PROG     = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
-  const SYS_PROG   = w3.SystemProgram.programId;
+    : 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+  const TOKEN_PROG  = new w3.PublicKey(TOKEN_PROG_ID);
+  const ASSOC_PROG  = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJe1bB8');
+  const SYS_PROG    = w3.SystemProgram.programId;
   const SYSVAR_RENT = new w3.PublicKey('SysvarRent111111111111111111111111111111111');
 
   const mintAddr = getSplMint(symbol);
@@ -742,62 +742,83 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   const toPubkey = new w3.PublicKey(toWalletAddress);
   const fromPub  = S.kp.publicKey;
 
-  // Convert decimal amount to raw integer using BigInt (no float precision loss)
   const rawAmount = parseSplUnits(String(amount), tk.decimals);
   if (rawAmount <= 0n) throw new Error('Amount must be greater than zero');
 
-  // Use raw fetch for blockhash — avoids web3.js hitting forbidden RPC
+  // Get blockhash via backend
   const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
-  const rpcUrl = await getWorkingRpcUrl();
 
+  // Derive ATAs using web3.js (needs Buffer polyfill — already loaded)
   const fromATA = getATA(fromPub, mintAddr);
   const toATA   = getATA(toPubkey, mintAddr);
+
+  // Check if destination ATA exists via backend /rpc proxy
+  const ataResp = await fetch(`${API}/rpc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getAccountInfo',
+      params:[toATA.toString(), { encoding:'base64' }] }),
+    signal: AbortSignal.timeout(10000),
+  });
+  const ataJson = await ataResp.json();
+  const toATAExists = ataJson?.result?.value != null;
 
   const tx = new w3.Transaction();
   tx.recentBlockhash      = blockhash;
   tx.feePayer             = fromPub;
   tx.lastValidBlockHeight = lastValidBlockHeight;
 
-  // Check if destination ATA exists via raw fetch
-  const ataCheckResp = await fetch(rpcUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getAccountInfo', params:[toATA.toString(), { encoding:'base64' }] }),
-    signal: AbortSignal.timeout(8000),
-  }).catch(() => null);
-  const ataCheckJson = ataCheckResp ? await ataCheckResp.json().catch(() => null) : null;
-  const toATAExists = ataCheckJson?.result?.value !== null && ataCheckJson?.result?.value !== undefined;
-
+  // Create destination ATA if needed
   if (!toATAExists) {
     tx.add(new w3.TransactionInstruction({
       programId: ASSOC_PROG,
       keys: [
-        { pubkey: fromPub,     isSigner: true,  isWritable: true  }, // payer
-        { pubkey: toATA,       isSigner: false, isWritable: true  }, // ATA to create
-        { pubkey: toPubkey,    isSigner: false, isWritable: false }, // ATA owner
-        { pubkey: mint,        isSigner: false, isWritable: false }, // mint
+        { pubkey: fromPub,     isSigner: true,  isWritable: true  },
+        { pubkey: toATA,       isSigner: false, isWritable: true  },
+        { pubkey: toPubkey,    isSigner: false, isWritable: false },
+        { pubkey: mint,        isSigner: false, isWritable: false },
         { pubkey: SYS_PROG,    isSigner: false, isWritable: false },
         { pubkey: TOKEN_PROG,  isSigner: false, isWritable: false },
         { pubkey: SYSVAR_RENT, isSigner: false, isWritable: false },
       ],
-      data: new Uint8Array(0), // no data needed for CreateATA
+      data: new Uint8Array(0),
     }));
   }
 
-  // SPL Transfer instruction: [u8: 3, u64-LE: amount]
-  const transferData = new Uint8Array(9);
-  transferData[0] = 3; // Transfer instruction discriminator
-  writeU64LE(transferData, rawAmount, 1);
+  if (IS_TOKEN_2022) {
+    // Token-2022 TransferChecked instruction (discriminator = 12)
+    // Required for PYUSD which has transfer hooks
+    const data = new Uint8Array(10);
+    data[0] = 12; // TransferChecked discriminator
+    writeU64LE(data, rawAmount, 1);
+    data[9] = tk.decimals; // decimals field
 
-  tx.add(new w3.TransactionInstruction({
-    programId: TOKEN_PROG,
-    keys: [
-      { pubkey: fromATA, isSigner: false, isWritable: true  }, // source ATA
-      { pubkey: toATA,   isSigner: false, isWritable: true  }, // dest ATA
-      { pubkey: fromPub, isSigner: true,  isWritable: false }, // authority
-    ],
-    data: transferData,
-  }));
+    tx.add(new w3.TransactionInstruction({
+      programId: TOKEN_PROG,
+      keys: [
+        { pubkey: fromATA,  isSigner: false, isWritable: true  }, // source
+        { pubkey: mint,     isSigner: false, isWritable: false }, // mint (required by TransferChecked)
+        { pubkey: toATA,    isSigner: false, isWritable: true  }, // dest
+        { pubkey: fromPub,  isSigner: true,  isWritable: false }, // authority
+      ],
+      data,
+    }));
+  } else {
+    // Standard SPL Token Transfer (discriminator = 3)
+    const data = new Uint8Array(9);
+    data[0] = 3;
+    writeU64LE(data, rawAmount, 1);
+
+    tx.add(new w3.TransactionInstruction({
+      programId: TOKEN_PROG,
+      keys: [
+        { pubkey: fromATA, isSigner: false, isWritable: true  },
+        { pubkey: toATA,   isSigner: false, isWritable: true  },
+        { pubkey: fromPub, isSigner: true,  isWritable: false },
+      ],
+      data,
+    }));
+  }
 
   tx.sign(S.kp);
   return btoa(String.fromCharCode(...tx.serialize()));
