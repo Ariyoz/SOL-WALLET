@@ -489,12 +489,20 @@ async function getWorkingRpcUrl() {
 
 /** Fetch the latest blockhash — tries backend first, then raw RPC fetch */
 async function fetchLatestBlockhash() {
+  // Use cached blockhash if fresh (< 30s) — avoids cold start delay
+  if (S._cachedBlockhash && (Date.now() - S._cachedBlockhash.ts) < 30000) {
+    return { blockhash: S._cachedBlockhash.blockhash, lastValidBlockHeight: S._cachedBlockhash.lastValidBlockHeight };
+  }
+
   // 1) Try dedicated /blockhash endpoint (clean, fast)
   try {
     const r = await fetch(`${API}/blockhash`, { signal: AbortSignal.timeout(55000) });
     if (r.ok) {
       const d = await r.json();
-      if (d?.blockhash) return { blockhash: d.blockhash, lastValidBlockHeight: d.lastValidBlockHeight };
+      if (d?.blockhash) {
+        S._cachedBlockhash = { ...d, ts: Date.now() };
+        return { blockhash: d.blockhash, lastValidBlockHeight: d.lastValidBlockHeight };
+      }
     }
   } catch (_) { /* fall through */ }
 
@@ -1331,6 +1339,12 @@ function updateSendUsdEst() {
 }
 
 function resetSend() {
+  // Wake up the backend immediately so it's ready when user hits Send
+  fetch(`${API}/blockhash`, { signal: AbortSignal.timeout(55000) })
+    .then(r => r.json())
+    .then(d => { if (d?.blockhash) S._cachedBlockhash = { ...d, ts: Date.now() }; })
+    .catch(() => {});
+
   // Reset token selection
   currentToken = 'SOL';
   $$('.tok-tab').forEach(b => b.classList.toggle('active', b.dataset.token === 'SOL'));
