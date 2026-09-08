@@ -34,29 +34,56 @@ use crate::{error::ApiError, state::AppState};
 //  POST /rpc  — generic Solana RPC proxy (CORS-safe passthrough)
 // ─────────────────────────────────────────────────────────────────────────────
 
+// Free RPC endpoints to try in order when the primary fails
+const FALLBACK_RPCS: &[&str] = &[
+    "https://api.mainnet-beta.solana.com",
+    "https://rpc.ankr.com/solana",
+    "https://solana-api.projectserum.com",
+];
+
 pub async fn rpc_proxy(
     State(state): State<AppState>,
     Json(body): Json<Value>,
 ) -> Result<Json<Value>, ApiError> {
     let client = reqwest::Client::builder()
-        .timeout(std::time::Duration::from_secs(15))
+        .timeout(std::time::Duration::from_secs(20))
         .build()
         .map_err(|e| ApiError::Internal(e.to_string()))?;
 
-    let rpc_url = state.rpc_url.as_str();
-    let resp = client
-        .post(rpc_url)
-        .json(&body)
-        .send()
-        .await
-        .map_err(|e| ApiError::Internal(format!("RPC proxy error: {e}")))?;
+    // Try primary RPC first, then fallbacks
+    let primary = state.rpc_url.as_str();
+    let mut endpoints: Vec<&str> = vec![primary];
+    for fb in FALLBACK_RPCS {
+        if *fb != primary {
+            endpoints.push(fb);
+        }
+    }
 
-    let json: Value = resp
-        .json()
-        .await
-        .map_err(|e| ApiError::Internal(format!("RPC response parse error: {e}")))?;
+    let mut last_err = String::from("No endpoints available");
+    for endpoint in &endpoints {
+        match client.post(*endpoint).json(&body).send().await {
+            Ok(resp) => {
+                match resp.json::<Value>().await {
+                    Ok(json) => {
+                        // If it's a 403/rate-limit error from the RPC, try next
+                        if let Some(err) = json.get("error") {
+                            let code = err.get("code").and_then(|c| c.as_i64()).unwrap_or(0);
+                            let msg  = err.get("message").and_then(|m| m.as_str()).unwrap_or("");
+                            if code == 403 || msg.contains("forbidden") || msg.contains("Access") {
+                                last_err = format!("RPC {endpoint} returned 403, trying next");
+                                continue;
+                            }
+                        }
+                        return Ok(Json(json));
+                    }
+                    Err(e) => { last_err = e.to_string(); continue; }
+                }
+            }
+            Err(e) => { last_err = e.to_string(); continue; }
+        }
+    }
 
-    Ok(Json(json))
+    Err(ApiError::Internal(format!("All RPC endpoints failed: {last_err}")))
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -227,11 +254,54 @@ pub async fn send_transaction(
     let tx: Transaction = bincode::deserialize(&tx_bytes)
         .map_err(|e| ApiError::BadRequest(format!("Invalid transaction bytes: {e}")))?;
 
-    let signature = state
-        .rpc_client
-        .send_transaction(&tx)
-        .await
-        .map_err(|e| ApiError::from(wallet_core::WalletError::TransactionSubmit(e.to_string())))?;
+    // Try primary RPC client first, then fallback endpoints
+    let primary_result = state.rpc_client.send_transaction(&tx).await;
+
+    let signature = match primary_result {
+        Ok(sig) => sig,
+        Err(e) => {
+            let err_str = e.to_string();
+            // If primary is rate-limited/forbidden, try fallback endpoints directly
+            if err_str.contains("403") || err_str.contains("forbidden") || err_str.contains("Access") {
+                let client = reqwest::Client::builder()
+                    .timeout(std::time::Duration::from_secs(20))
+                    .build()
+                    .map_err(|e2| ApiError::Internal(e2.to_string()))?;
+
+                let b64_tx = B64.encode(&tx_bytes);
+                let rpc_body = serde_json::json!({
+                    "jsonrpc": "2.0", "id": 1,
+                    "method": "sendTransaction",
+                    "params": [b64_tx, {"encoding": "base64", "skipPreflight": false, "preflightCommitment": "confirmed"}]
+                });
+
+                let mut last_err = err_str;
+                for endpoint in FALLBACK_RPCS {
+                    if *endpoint == state.rpc_url.as_str() { continue; }
+                    match client.post(*endpoint).json(&rpc_body).send().await {
+                        Ok(resp) => {
+                            if let Ok(json) = resp.json::<serde_json::Value>().await {
+                                if let Some(result) = json.get("result").and_then(|r| r.as_str()) {
+                                    let sig = result.parse::<solana_sdk::signature::Signature>()
+                                        .map_err(|e2| ApiError::Internal(e2.to_string()))?;
+                                    info!("Broadcasted via fallback {}: {}", endpoint, sig);
+                                    return Ok(Json(SendResponse {
+                                        explorer_url: build_explorer_url(&sig.to_string(), &state.cluster),
+                                        signature: sig.to_string(),
+                                    }));
+                                } else if let Some(err) = json.get("error") {
+                                    last_err = err.to_string();
+                                }
+                            }
+                        }
+                        Err(e2) => { last_err = e2.to_string(); }
+                    }
+                }
+                return Err(ApiError::from(wallet_core::WalletError::TransactionSubmit(last_err)));
+            }
+            return Err(ApiError::from(wallet_core::WalletError::TransactionSubmit(err_str)));
+        }
+    };
 
     info!("Broadcasted transaction: {}", signature);
 
