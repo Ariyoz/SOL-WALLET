@@ -612,8 +612,9 @@ function getSplMint(symbol) {
   return network === 'mainnet-beta' ? tk.mainnet : tk.devnet;
 }
 
-/** Find the actual token account address from chain — no derivation guessing */
+/** Find the actual token account address from chain — queries both token programs */
 async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId) {
+  // Try with { mint: mintAddress } first — works for legacy SPL tokens
   try {
     const r = await fetch(`${API}/rpc`, {
       method: 'POST',
@@ -631,8 +632,34 @@ async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId
       return new w3.PublicKey(accounts[0].pubkey);
     }
   } catch (_) {}
+
+  // Also try querying by programId explicitly for Token-2022 tokens (PYUSD)
+  // because some RPCs don't return Token-2022 accounts with { mint: ... } filter
+  if (tokenProgramId === 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb') {
+    try {
+      const r = await fetch(`${API}/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 2,
+          method: 'getTokenAccountsByOwner',
+          params: [walletAddress, { programId: tokenProgramId }, { encoding: 'jsonParsed' }]
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      const j = await r.json();
+      const accounts = (j?.result?.value || []).filter(a =>
+        a.account?.data?.parsed?.info?.mint === mintAddress
+      );
+      if (accounts.length > 0) {
+        return new w3.PublicKey(accounts[0].pubkey);
+      }
+    } catch (_) {}
+  }
+
   // Fall back to ATA derivation
   return getATA(new w3.PublicKey(walletAddress), mintAddress, tokenProgramId);
+}
 }
 
 /** Derive the Associated Token Account (ATA) address using raw bytes */
