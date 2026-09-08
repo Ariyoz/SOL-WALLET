@@ -715,32 +715,33 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   // Get blockhash via backend
   const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
 
-  // Find sender's actual token account from chain (not derived — avoids wrong ATA)
+  // Find sender's actual token account from chain
   const fromATA = await findSourceTokenAccount(fromPub.toString(), mintAddr, TOKEN_PROG_ID);
-  // Derive recipient ATA (standard derivation is fine for destination)
-  const toATA = getATA(toPubkey, mintAddr, TOKEN_PROG_ID);
+  // Find recipient's actual token account from chain — don't assume derived ATA
+  const toATA   = await findSourceTokenAccount(toPubkey.toString(), mintAddr, TOKEN_PROG_ID);
 
   const tx = new w3.Transaction();
   tx.recentBlockhash      = blockhash;
   tx.feePayer             = fromPub;
   tx.lastValidBlockHeight = lastValidBlockHeight;
 
-  // Create recipient's ATA using idempotent instruction (instruction type = 1)
-  // This is safe to include even if ATA already exists — it's a no-op if so.
-  // Idempotent CreateATA was introduced in spl-associated-token-account v1.1.0
-  tx.add(new w3.TransactionInstruction({
-    programId: ASSOC_PROG,
-    keys: [
-      { pubkey: fromPub,    isSigner: true,  isWritable: true  }, // fee payer
-      { pubkey: toATA,      isSigner: false, isWritable: true  }, // ATA to create
-      { pubkey: toPubkey,   isSigner: false, isWritable: false }, // ATA owner
-      { pubkey: mint,       isSigner: false, isWritable: false }, // mint
-      { pubkey: SYS_PROG,   isSigner: false, isWritable: false }, // system program
-      { pubkey: TOKEN_PROG, isSigner: false, isWritable: false }, // token program
-    ],
-    // Instruction discriminator 1 = CreateIdempotent (won't fail if ATA exists)
-    data: new Uint8Array([1]),
-  }));
+  // Only create recipient ATA if they don't have any existing token account
+  const needCreateATA = toATA.toString() === getATA(toPubkey, mintAddr, TOKEN_PROG_ID).toString();
+  if (needCreateATA) {
+    // Use idempotent CreateATA (discriminator=1) — safe even if account exists
+    tx.add(new w3.TransactionInstruction({
+      programId: ASSOC_PROG,
+      keys: [
+        { pubkey: fromPub,    isSigner: true,  isWritable: true  },
+        { pubkey: toATA,      isSigner: false, isWritable: true  },
+        { pubkey: toPubkey,   isSigner: false, isWritable: false },
+        { pubkey: mint,       isSigner: false, isWritable: false },
+        { pubkey: SYS_PROG,   isSigner: false, isWritable: false },
+        { pubkey: TOKEN_PROG, isSigner: false, isWritable: false },
+      ],
+      data: new Uint8Array([1]), // 1 = CreateIdempotent
+    }));
+  }
 
   if (IS_TOKEN_2022) {
     // Token-2022 TransferChecked instruction (discriminator = 12)
