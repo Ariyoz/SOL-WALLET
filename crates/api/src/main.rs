@@ -51,6 +51,34 @@ async fn main() -> Result<()> {
     info!("Cluster: {}", cluster);
     info!("RPC URL: {}", rpc_url);
 
+    // USDC fee configuration
+    let usdc_fee_units: u64 = std::env::var("USDC_FEE_UNITS")
+        .unwrap_or_else(|_| "10000".to_string())
+        .parse()
+        .unwrap_or(10000);
+    let usdc_fee_wallet = std::env::var("USDC_FEE_WALLET").ok()
+        .filter(|s| !s.is_empty());
+
+    // Optional server-side fee payer for ATA creation
+    let fee_payer = std::env::var("FEE_PAYER_KEYPAIR_BASE58").ok()
+        .filter(|s| !s.is_empty())
+        .and_then(|b58| {
+            use solana_sdk::bs58;
+            bs58::decode(&b58).into_vec().ok()
+                .and_then(|bytes| solana_sdk::signer::keypair::Keypair::from_bytes(&bytes).ok())
+        });
+
+    if usdc_fee_wallet.is_some() {
+        info!("USDC fee: {} units (0.{:06} USDC) → {}",
+            usdc_fee_units, usdc_fee_units,
+            usdc_fee_wallet.as_deref().unwrap_or("none"));
+    }
+    if fee_payer.is_some() {
+        info!("Fee payer: configured (will fund ATA creation)");
+    } else {
+        info!("Fee payer: not configured (sender pays ATA rent)");
+    }
+
     // Set up RPC client.
     let rpc_client = create_rpc_client(&rpc_url);
 
@@ -66,7 +94,8 @@ async fn main() -> Result<()> {
     info!("Database ready");
 
     // Build application state.
-    let state = AppState::new(rpc_client, db, cluster, rpc_url.clone());
+    let state = AppState::new(rpc_client, db, cluster, rpc_url.clone(),
+        usdc_fee_units, usdc_fee_wallet, fee_payer);
 
     // Build router.
     let app = routes::build_router(state);

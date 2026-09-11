@@ -26,6 +26,11 @@ pub fn build_router(state: AppState) -> Router {
         .route("/rpc", post(handlers::rpc_proxy))
         // Blockhash
         .route("/blockhash", get(handlers::get_blockhash))
+        // USDC fee configuration
+        .route("/transaction/usdc-fee", get(handlers::get_usdc_fee))
+        // USDC estimate + prepare
+        .route("/transaction/estimate-usdc", post(handlers::estimate_usdc_send))
+        .route("/transaction/prepare-usdc", post(handlers::prepare_usdc_send))
         // Wallet
         .route("/wallet/balance/:address", get(handlers::get_balance))
         .route("/wallet/signatures/:address", get(handlers::get_wallet_signatures))
