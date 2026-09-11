@@ -162,8 +162,8 @@
   <div class="action-row">
     <button class="act-btn" data-screen="send"><div class="act-ico a-send"><svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg></div><span>Send</span></button>
     <button class="act-btn" data-screen="receive"><div class="act-ico a-recv"><svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg></div><span>Receive</span></button>
+    <button class="act-btn" data-screen="swap"><div class="act-ico a-swap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></div><span>Swap</span></button>
     <button class="act-btn" id="btn-copy-act"><div class="act-ico a-copy"><svg viewBox="0 0 24 24"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/></svg></div><span>Copy</span></button>
-    <button class="act-btn" data-screen="markets"><div class="act-ico a-mkt"><svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></div><span>Markets</span></button>
   </div>
 
   <!-- Assets: SOL + USDC + PYUSD -->
@@ -411,13 +411,154 @@
   </div>
 </section>
 
+<!-- ══ SWAP ══ -->
+<section id="screen-swap" class="screen">
+  <div class="topbar">
+    <button class="tb-back" data-back="home"><svg viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+    <span class="tb-title">Swap</span>
+    <div style="width:34px"></div>
+  </div>
+  <div class="scroll-wrap">
+
+    <!-- Swap form -->
+    <div id="swap-step-form">
+      <!-- From token -->
+      <div class="swap-box">
+        <div class="swap-box-header">
+          <span class="swap-box-label">You pay</span>
+          <span class="swap-box-bal" id="swap-from-bal">—</span>
+        </div>
+        <div class="swap-box-body">
+          <input type="number" id="swap-from-amount" class="swap-inp" placeholder="0" min="0" step="any" autocomplete="off"/>
+          <button class="swap-token-btn" id="swap-from-token-btn">
+            <span id="swap-from-token-label">SOL</span>
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
+        <div class="swap-usd-est" id="swap-from-usd">≈ $0.00</div>
+      </div>
+
+      <!-- Swap direction button -->
+      <div class="swap-arrow-wrap">
+        <button id="btn-swap-direction" class="swap-arrow-btn" title="Flip tokens">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.5">
+            <path d="M7 16V4m0 0L3 8m4-4l4 4"/>
+            <path d="M17 8v12m0 0l4-4m-4 4l-4-4"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- To token -->
+      <div class="swap-box">
+        <div class="swap-box-header">
+          <span class="swap-box-label">You receive</span>
+          <span class="swap-box-bal" id="swap-to-bal">—</span>
+        </div>
+        <div class="swap-box-body">
+          <input type="number" id="swap-to-amount" class="swap-inp" placeholder="0" readonly/>
+          <button class="swap-token-btn" id="swap-to-token-btn">
+            <span id="swap-to-token-label">USDC</span>
+            <svg viewBox="0 0 24 24" width="14" height="14"><path d="M6 9l6 6 6-6"/></svg>
+          </button>
+        </div>
+        <div class="swap-usd-est" id="swap-to-usd">≈ $0.00</div>
+      </div>
+
+      <!-- Token picker (hidden by default) -->
+      <div id="swap-token-picker" class="swap-picker hidden">
+        <div class="swap-picker-title">Select token</div>
+        <div class="swap-picker-list">
+          <button class="swap-picker-item" data-token="SOL">
+            <div class="spi-ico sol-col"><svg viewBox="0 0 646 646" width="20" height="20"><path fill="#fff" d="M108.53 478.77a17.6 17.6 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="#fff" d="M108.53 77.78a18.05 18.05 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/><path fill="#fff" d="M523.21 278.27a17.6 17.6 0 00-12.45-5.16H32.7a8.8 8.8 0 00-6.22 15.02l81.55 81.55a17.6 17.6 0 0012.45 5.16h477.71a8.8 8.8 0 006.22-15.02z"/></svg></div>
+            <div class="spi-info"><div class="spi-name">Solana</div><div class="spi-sym">SOL</div></div>
+          </button>
+          <button class="swap-picker-item" data-token="USDC">
+            <div class="spi-ico"><img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v/logo.png" width="34" height="34" style="border-radius:50%" onerror="this.style.display='none'"/></div>
+            <div class="spi-info"><div class="spi-name">USD Coin</div><div class="spi-sym">USDC</div></div>
+          </button>
+          <button class="swap-picker-item" data-token="PYUSD">
+            <div class="spi-ico"><img src="https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo/logo.png" width="34" height="34" style="border-radius:50%" onerror="this.src='https://assets.coingecko.com/coins/images/31212/small/PYUSD_Logo_%282%29.png'"/></div>
+            <div class="spi-info"><div class="spi-name">PayPal USD</div><div class="spi-sym">PYUSD</div></div>
+          </button>
+        </div>
+      </div>
+
+      <!-- Quote details -->
+      <div id="swap-quote-info" class="swap-quote hidden">
+        <div class="sq-row"><span>Rate</span><span id="sq-rate">—</span></div>
+        <div class="sq-row"><span>Price impact</span><span id="sq-impact">—</span></div>
+        <div class="sq-row"><span>Network fee</span><span id="sq-fee">~0.000005 SOL</span></div>
+        <div class="sq-row"><span>Route</span><span id="sq-route">Jupiter</span></div>
+      </div>
+
+      <div id="swap-error" class="err-box hidden"></div>
+      <button id="btn-swap-preview" class="btn-send-cta" disabled>Get Quote</button>
+    </div>
+
+    <!-- Swap preview / confirm -->
+    <div id="swap-step-preview" class="hidden">
+      <div class="sp-hero">
+        <div class="sp-coin sol-col"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg></div>
+        <div class="sp-amount" id="swap-preview-from">—</div>
+        <div class="sp-usd-est">→</div>
+        <div class="sp-amount" id="swap-preview-to" style="color:var(--grn)">—</div>
+      </div>
+      <div class="sp-breakdown">
+        <div class="spb-row"><span class="spb-key">Rate</span><span id="swap-preview-rate">—</span></div>
+        <div class="spb-row"><span class="spb-key">Price impact</span><span id="swap-preview-impact">—</span></div>
+        <div class="spb-row"><span class="spb-key">Network fee</span><span id="swap-preview-fee">~0.000005 SOL</span></div>
+        <div class="spb-row"><span class="spb-key">Minimum received</span><span id="swap-preview-min">—</span></div>
+      </div>
+      <p class="swap-note">Quote valid for ~30s. Price may change slightly.</p>
+      <div class="sp-actions">
+        <button id="btn-swap-back" class="btn-outline">← Edit</button>
+        <button id="btn-swap-confirm" class="btn-confirm-send">
+          <svg viewBox="0 0 24 24"><path d="M7 16V4m0 0L3 8m4-4l4 4"/><path d="M17 8v12m0 0l4-4m-4 4l-4-4"/></svg>
+          Swap Now
+        </button>
+      </div>
+    </div>
+
+    <!-- Swap result -->
+    <div id="swap-step-result" class="hidden">
+      <div id="swap-result-success" class="hidden">
+        <div class="sr-anim">
+          <div class="sr-ring sr-ring1"></div><div class="sr-ring sr-ring2"></div>
+          <div class="sr-check"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></div>
+        </div>
+        <h2 class="sr-title">Swapped!</h2>
+        <p class="sr-sub" id="swap-result-msg">Swap complete.</p>
+        <div class="sr-sig-box">
+          <div class="srb-lbl">Transaction</div>
+          <div class="srb-row"><span id="swap-result-sig" class="srb-val">—</span><button id="btn-copy-swap-sig" class="srb-copy">⧉</button></div>
+        </div>
+        <a id="swap-explorer-link" href="#" target="_blank" rel="noopener noreferrer" class="sr-explorer">
+          <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 01-2 2H5a2 2 0 01-2-2V8a2 2 0 012-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+          View on Explorer
+        </a>
+      </div>
+      <div id="swap-result-error" class="hidden">
+        <div class="sr-fail-ico"><svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></div>
+        <h2 class="sr-title">Swap Failed</h2>
+        <p id="swap-result-error-msg" style="color:#f0516e;font-size:.875rem;max-width:280px;text-align:center">Something went wrong.</p>
+      </div>
+      <button id="btn-swap-another" class="btn-outline" style="width:100%;margin-top:1.25rem">Swap Again</button>
+    </div>
+
+    <div style="height:6rem"></div>
+  </div>
+</section>
+
 <!-- MODALS -->
+<div id="modal-loading" class="modal-overlay hidden"><div class="modal-box modal-loading"><div class="loader"><div></div><div></div><div></div></div><p id="modal-loading-text">Please wait…</p></div></div>
+<div id="modal-alert" class="modal-overlay hidden"><div class="modal-box"><h3 id="modal-alert-title">Notice</h3><p id="modal-alert-body"></p><div class="modal-btns"><button id="modal-alert-cancel" class="btn-outline btn-sm hidden">Cancel</button><button id="modal-alert-ok" class="btn-green btn-sm">OK</button></div></div></div>
+<div id="toast-container"></div>
 <div id="modal-loading" class="modal-overlay hidden"><div class="modal-box modal-loading"><div class="loader"><div></div><div></div><div></div></div><p id="modal-loading-text">Please wait…</p></div></div>
 <div id="modal-alert" class="modal-overlay hidden"><div class="modal-box"><h3 id="modal-alert-title">Notice</h3><p id="modal-alert-body"></p><div class="modal-btns"><button id="modal-alert-cancel" class="btn-outline btn-sm hidden">Cancel</button><button id="modal-alert-ok" class="btn-green btn-sm">OK</button></div></div></div>
 <div id="toast-container"></div>
 
 </div>
-<script src="frontend/app.js?v=2.2.0"></script>
+<script src="frontend/app.js?v=2.3.0"></script>
 </body>
 </html>
       
