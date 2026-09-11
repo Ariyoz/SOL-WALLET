@@ -3,7 +3,7 @@
  *
  * Balance/Send/History: Direct Solana RPC via web3.js (no backend needed)
  * Market data: CoinGecko public API
- * Signing: LOCAL only â€” private key never leaves device
+ * Signing: LOCAL only Ã¢â‚¬â€ private key never leaves device
  * Backend (optional): set API to your Render URL for fee estimation + QR
  */
 'use strict';
@@ -23,7 +23,7 @@ const FALLBACK_RPCS = [
 const STOR       = { kp:'sw_kp', rpc:'sw_rpc', net:'sw_net' };
 const HIST_LIMIT = 20;
 
-// â”€ SPL Token mint addresses â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ SPL Token mint addresses Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const SPL_TOKENS = {
   USDC: {
     name:     'USD Coin',
@@ -42,7 +42,7 @@ const SPL_TOKENS = {
     mainnet:  '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo',
     decimals: 6,
     color:    'pyusd-col',
-    icon:     'â‚±',
+    icon:     'Ã¢â€šÂ±',
     usdPrice: 1.0,
   },
 };
@@ -52,7 +52,7 @@ let currentToken = 'SOL';
 // Cached token balances { uiAmount: number | null }
 const tokenBals = { USDC: null, PYUSD: null };
 
-// â”€ Coin SVG icons (inline, no external deps) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Coin SVG icons (inline, no external deps) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const COIN_ICONS = {
   SOL: `<svg viewBox="0 0 646 646" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
     <path fill="#fff" d="M108.53 478.77a17.6 17.6 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/>
@@ -103,7 +103,7 @@ const COIN_ICONS = {
   </svg>`,
 };
 
-// â”€ Market coins to fetch â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Market coins to fetch Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const MARKET_COINS = [
   { id:'solana',      sym:'SOL',  name:'Solana',    cls:'sol-ico',  icon:'SOL'  },
   { id:'bitcoin',     sym:'BTC',  name:'Bitcoin',   cls:'btc-ico',  icon:'BTC'  },
@@ -115,7 +115,7 @@ const MARKET_COINS = [
   { id:'binancecoin', sym:'BNB',  name:'BNB',       cls:'bnb-ico',  icon:'BNB'  },
 ];
 
-// â”€ State â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ State Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const S = {
   kp: null, conn: null, histPage: 0,
   pending: null, price: null, solBal: 0,
@@ -123,15 +123,15 @@ const S = {
 };
 let w3;
 
-// â”€ DOM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ DOM Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const g    = id  => document.getElementById(id);
 const $$   = sel => [...document.querySelectorAll(sel)];
 const show = el  => (typeof el==='string'?g(el):el)?.classList.remove('hidden');
 const hide = el  => (typeof el==='string'?g(el):el)?.classList.add('hidden');
 const txt  = (id,v) => { const e=g(id); if(e) e.textContent=v; };
 const esc  = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const trunc = (a,n=6) => !a||a.length<=n*2 ? a : `${a.slice(0,n)}â€¦${a.slice(-n)}`;
-const fmtTs = ts => ts ? new Date(ts*1000).toLocaleString([],{dateStyle:'short',timeStyle:'short'}) : 'â€”';
+const trunc = (a,n=6) => !a||a.length<=n*2 ? a : `${a.slice(0,n)}Ã¢â‚¬Â¦${a.slice(-n)}`;
+const fmtTs = ts => ts ? new Date(ts*1000).toLocaleString([],{dateStyle:'short',timeStyle:'short'}) : 'Ã¢â‚¬â€';
 const fmtUSD = n => {
   if (n >= 1e12) return `$${(n/1e12).toFixed(2)}T`;
   if (n >= 1e9)  return `$${(n/1e9).toFixed(2)}B`;
@@ -154,7 +154,7 @@ function showScreen(name) {
   }[name]||Function.prototype)();
 }
 
-// â”€ Toast â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Toast Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function toast(msg, type='', ms=3200) {
   const t = document.createElement('div');
   t.className = `toast${type?' '+type:''}`;
@@ -163,8 +163,8 @@ function toast(msg, type='', ms=3200) {
   setTimeout(()=>t.remove(), ms);
 }
 
-// â”€ Modals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-function showLoading(msg='Please waitâ€¦'){txt('modal-loading-text',msg);show('modal-loading');}
+// Ã¢â€â‚¬ Modals Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+function showLoading(msg='Please waitÃ¢â‚¬Â¦'){txt('modal-loading-text',msg);show('modal-loading');}
 function hideLoading(){hide('modal-loading');}
 function showAlert(title,body,{cancel=false}={}) {
   return new Promise(res=>{
@@ -176,11 +176,11 @@ function showAlert(title,body,{cancel=false}={}) {
   });
 }
 
-// â”€ Lamport helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Lamport helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const SOL9 = 1_000_000_000n;
 function parseLamports(raw) {
   const s = String(raw).trim();
-  if (!s || !/^\d+(\.\d+)?$/.test(s)) throw new Error('Invalid amount â€” digits only, e.g. 0.001');
+  if (!s || !/^\d+(\.\d+)?$/.test(s)) throw new Error('Invalid amount Ã¢â‚¬â€ digits only, e.g. 0.001');
   const [w,f=''] = s.split('.');
   if (f.length>9) throw new Error('Max 9 decimal places');
   const v = BigInt(w)*SOL9 + BigInt(f.padEnd(9,'0'));
@@ -191,7 +191,7 @@ function parseLamports(raw) {
 /** Parse a stablecoin amount string into raw integer units (6 decimals) */
 function parseSplUnits(raw, decimals) {
   const s = String(raw).trim();
-  if (!s || !/^\d+(\.\d+)?$/.test(s)) throw new Error('Invalid amount â€” digits only, e.g. 10');
+  if (!s || !/^\d+(\.\d+)?$/.test(s)) throw new Error('Invalid amount Ã¢â‚¬â€ digits only, e.g. 10');
   const [w, f=''] = s.split('.');
   if (f.length > decimals) throw new Error(`Max ${decimals} decimal places`);
   const v = BigInt(w) * (10n ** BigInt(decimals)) + BigInt(f.padEnd(decimals,'0'));
@@ -199,17 +199,17 @@ function parseSplUnits(raw, decimals) {
   return v;
 }
 
-// â”€ Clipboard â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Clipboard Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 async function copy(text, label='Copied') {
   try { await navigator.clipboard.writeText(text); }
   catch(_) {
     const el=Object.assign(document.createElement('textarea'),{value:text,style:'position:fixed;opacity:0'});
     document.body.appendChild(el); el.select(); document.execCommand('copy'); el.remove();
   }
-  toast(`${label} âœ“`, 'success');
+  toast(`${label} Ã¢Å“â€œ`, 'success');
 }
 
-// â”€ Backend API helpers (kept for future use) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Backend API helpers (kept for future use) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 async function apiGet(path) {
   const r = await fetch(API+path, {signal:AbortSignal.timeout(10000)});
   const d = await r.json();
@@ -226,7 +226,7 @@ async function apiPost(path, body) {
   return d;
 }
 
-// â”€ API â€” direct Solana RPC, no backend required â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ API Ã¢â‚¬â€ direct Solana RPC, no backend required Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 async function getBalance(address) {
   // 1) Render backend /wallet/balance
@@ -287,7 +287,7 @@ async function broadcastTx(b64) {
 async function getTxHistory(address, limit, offset) {
   const { network } = loadNet();
 
-  // 1) Try dedicated backend endpoint â€” fetches from chain with proper detail
+  // 1) Try dedicated backend endpoint Ã¢â‚¬â€ fetches from chain with proper detail
   try {
     const r = await fetch(
       `${API}/wallet/signatures/${address}?limit=${limit}&offset=${offset}`,
@@ -377,7 +377,7 @@ async function getTxHistory(address, limit, offset) {
 
     const transactions = sigs.map((s, i) => {
       const result = txDetails.find(d => d.id === i + 1)?.result;
-      let direction = 'sent', amount_sol = 'â€”', counterparty = '', fee_sol = '0.000005';
+      let direction = 'sent', amount_sol = 'Ã¢â‚¬â€', counterparty = '', fee_sol = '0.000005';
 
       if (result?.meta) {
         fee_sol = result.meta.fee ? (result.meta.fee / 1e9).toFixed(9) : fee_sol;
@@ -414,7 +414,7 @@ async function getTxHistory(address, limit, offset) {
 
 const getQrCode = () => Promise.resolve(null);
 
-// â”€ Market data (CoinGecko â€” direct browser, public API) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Market data (CoinGecko Ã¢â‚¬â€ direct browser, public API) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 async function fetchMarketData() {
   const now = Date.now();
   if (S.marketData.length && now - S.lastMarketFetch < 60000) return S.marketData;
@@ -436,7 +436,7 @@ async function fetchMarketData() {
   }
 }
 
-// â”€ Storage â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Storage Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const saveKp  = kp    => localStorage.setItem(STOR.kp, bs58.encode(kp.secretKey));
 const clearKp = ()    => localStorage.removeItem(STOR.kp);
 const saveNet = (u,n) => { localStorage.setItem(STOR.rpc,u); localStorage.setItem(STOR.net,n); };
@@ -448,12 +448,12 @@ function loadKp() {
   try { return w3.Keypair.fromSecretKey(bs58.decode(raw)); } catch(_) { return null; }
 }
 
-// â”€ Connection helper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Connection helper Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 /** Get the first CORS-friendly RPC URL that responds successfully */
-/** Returns the best RPC URL to use â€” always prefers the backend proxy */
+/** Returns the best RPC URL to use Ã¢â‚¬â€ always prefers the backend proxy */
 async function getWorkingRpcUrl() {
-  // Always use backend /rpc proxy â€” it never 403s from browser
+  // Always use backend /rpc proxy Ã¢â‚¬â€ it never 403s from browser
   return `${API}/rpc-passthrough`;
 }
 
@@ -471,7 +471,7 @@ async function rpcCall(method, params, timeoutMs = 12000) {
   return j.result;
 }
 
-/** Fetch the latest blockhash â€” always via backend, never direct RPC */
+/** Fetch the latest blockhash Ã¢â‚¬â€ always via backend, never direct RPC */
 async function fetchLatestBlockhash() {
   // Use cached blockhash if fresh (< 30s)
   if (S._cachedBlockhash && (Date.now() - S._cachedBlockhash.ts) < 30000) {
@@ -508,10 +508,10 @@ async function fetchLatestBlockhash() {
     }
   } catch (_) { /* fall through */ }
 
-  throw new Error('Could not fetch blockhash â€” backend unavailable');
+  throw new Error('Could not fetch blockhash Ã¢â‚¬â€ backend unavailable');
 }
 
-/** Send a raw signed transaction â€” tries backend first, then /rpc proxy */
+/** Send a raw signed transaction Ã¢â‚¬â€ tries backend first, then /rpc proxy */
 async function sendRawTxFetch(serializedBytes) {
   const b64 = btoa(String.fromCharCode(...serializedBytes));
 
@@ -558,7 +558,7 @@ function getConn() {
   return S.conn;
 }
 
-// â”€ SLIP-0010 BIP-44 m/44'/501'/0'/0' â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ SLIP-0010 BIP-44 m/44'/501'/0'/0' Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 async function hmac512(key, data) {
   const k = await crypto.subtle.importKey('raw',key,{name:'HMAC',hash:'SHA-512'},false,['sign']);
   return new Uint8Array(await crypto.subtle.sign('HMAC',k,data));
@@ -574,11 +574,11 @@ async function slip10(seed) {
   return IL;
 }
 
-// â”€ BIP-39 â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ BIP-39 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 const b39 = () => { if(window.bip39?.generateMnemonic) return window.bip39; throw new Error('bip39 not loaded'); };
 async function phraseToWallet(phrase) {
   const b=b39(), n=phrase.trim().toLowerCase().replace(/\s+/g,' ');
-  if (!b.validateMnemonic(n)) throw new Error('Invalid recovery phrase â€” check each word');
+  if (!b.validateMnemonic(n)) throw new Error('Invalid recovery phrase Ã¢â‚¬â€ check each word');
   return w3.Keypair.fromSeed(await slip10(new Uint8Array(await b.mnemonicToSeed(n))));
 }
 async function genWallet() {
@@ -591,10 +591,10 @@ function keyToWallet(b58) {
   return w3.Keypair.fromSecretKey(bytes);
 }
 
-// â”€ SOL Signing â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ SOL Signing Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 async function signTransfer(to, lamps) {
   if (!S.kp) throw new Error('No wallet');
-  // Use raw fetch for blockhash â€” avoids web3.js hitting forbidden RPC
+  // Use raw fetch for blockhash Ã¢â‚¬â€ avoids web3.js hitting forbidden RPC
   const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
   const tx = new w3.Transaction();
   tx.add(w3.SystemProgram.transfer({fromPubkey:S.kp.publicKey,toPubkey:new w3.PublicKey(to),lamports:lamps}));
@@ -603,7 +603,7 @@ async function signTransfer(to, lamps) {
   return btoa(String.fromCharCode(...tx.serialize()));
 }
 
-// â”€ SPL Token helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ SPL Token helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
 function getSplMint(symbol) {
   const { network } = loadNet();
@@ -612,9 +612,9 @@ function getSplMint(symbol) {
   return network === 'mainnet-beta' ? tk.mainnet : tk.devnet;
 }
 
-/** Find the actual token account address from chain â€” queries both token programs */
+/** Find the actual token account address from chain Ã¢â‚¬â€ queries both token programs */
 async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId) {
-  // Try with { mint: mintAddress } first â€” works for legacy SPL tokens
+  // Try with { mint: mintAddress } first Ã¢â‚¬â€ works for legacy SPL tokens
   try {
     const r = await fetch(`${API}/rpc`, {
       method: 'POST',
@@ -664,12 +664,12 @@ async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId
 
 /** Derive the Associated Token Account (ATA) address using raw bytes */
 function getATA(walletPubkey, mintAddress, tokenProgramId) {
-  // Default to legacy token program â€” Token-2022 ATAs use Token-2022 program ID
+  // Default to legacy token program Ã¢â‚¬â€ Token-2022 ATAs use Token-2022 program ID
   const TOKEN_PROG = new w3.PublicKey(tokenProgramId || 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
   const ASSOC_PROG = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
   const mint       = new w3.PublicKey(mintAddress);
 
-  // Use toBytes() instead of toBuffer() â€” doesn't need Buffer polyfill
+  // Use toBytes() instead of toBuffer() Ã¢â‚¬â€ doesn't need Buffer polyfill
   const walletBytes = walletPubkey.toBytes();
   const tokenBytes  = TOKEN_PROG.toBytes();
   const mintBytes   = mint.toBytes();
@@ -681,7 +681,7 @@ function getATA(walletPubkey, mintAddress, tokenProgramId) {
   return ata;
 }
 
-/** Fetch SPL token balance via /rpc proxy only â€” no direct RPC calls */
+/** Fetch SPL token balance via /rpc proxy only Ã¢â‚¬â€ no direct RPC calls */
 async function getSplBalance(walletPubkey, mintAddress) {
   const ata = getATA(walletPubkey, mintAddress);
   try {
@@ -726,7 +726,7 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
     : 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
   const TOKEN_PROG  = new w3.PublicKey(TOKEN_PROG_ID);
   const SYS_PROG    = w3.SystemProgram.programId;
-  // AToken program â€” native Solana program for creating Associated Token Accounts
+  // AToken program Ã¢â‚¬â€ native Solana program for creating Associated Token Accounts
   const ASSOC_PROG  = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
   const mintAddr = getSplMint(symbol);
   if (!mintAddr) throw new Error(`Unknown token: ${symbol}`);
@@ -744,7 +744,7 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
 
   // Find sender's actual token account from chain
   const fromATA = await findSourceTokenAccount(fromPub.toString(), mintAddr, TOKEN_PROG_ID);
-  // Find recipient's actual token account from chain â€” don't assume derived ATA
+  // Find recipient's actual token account from chain Ã¢â‚¬â€ don't assume derived ATA
   const toATA   = await findSourceTokenAccount(toPubkey.toString(), mintAddr, TOKEN_PROG_ID);
 
   // Recipient has an account if the lookup returned something different from the derived ATA
@@ -775,7 +775,7 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   tx.lastValidBlockHeight = lastValidBlockHeight;
 
   if (!recipientHasAccount) {
-    // Recipient has no token account â€” create one
+    // Recipient has no token account Ã¢â‚¬â€ create one
     tx.add(new w3.TransactionInstruction({
       programId: ASSOC_PROG,
       keys: [
@@ -829,10 +829,10 @@ async function signSplTransfer(toWalletAddress, symbol, amount) {
   return btoa(String.fromCharCode(...tx.serialize()));
 }
 
-// â”€ SPL Balance loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ SPL Balance loader Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 
-// â”€ SPL Balance loader â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Uses getTokenAccountsByOwner â€” no ATA derivation needed, works reliably
+// Ã¢â€â‚¬ SPL Balance loader Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// Uses getTokenAccountsByOwner Ã¢â‚¬â€ no ATA derivation needed, works reliably
 
 async function loadSplBalances(walletPubkey) {
   const walletAddr = walletPubkey.toString();
@@ -852,7 +852,7 @@ async function loadSplBalances(walletPubkey) {
     PYUSD: pyusdMkt ? pyusdMkt.current_price : 1.0,
   };
 
-  // Fetch ALL token accounts for this wallet â€” query BOTH token programs
+  // Fetch ALL token accounts for this wallet Ã¢â‚¬â€ query BOTH token programs
   // (PYUSD uses Token-2022, USDC uses legacy Token program)
   try {
     const TOKEN_PROG      = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
@@ -885,7 +885,7 @@ async function loadSplBalances(walletPubkey) {
       ...(j2?.result?.value || []),
     ];
 
-    // Build a map of mint â†’ uiAmount
+    // Build a map of mint Ã¢â€ â€™ uiAmount
     const balMap = {};
     for (const acct of accounts) {
       const info = acct.account?.data?.parsed?.info;
@@ -934,7 +934,7 @@ async function loadSplBalances(walletPubkey) {
   }
 }
 
-// â”€ Wallet activation â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Ã¢â€â‚¬ Wallet activation Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
 function activateWallet(kp) {
   S.kp=kp; S.conn=null; S.connVerified=false; S.workingRpc=null; saveKp(kp); updateNetBadge(); show('bottomnav'); showScreen('home');
 }
@@ -949,21 +949,21 @@ function updateNetBadge() {
   if (pill) { pill.textContent=lbl; pill.className=`net-pill ${cls}`; }
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  ONBOARDING
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function initOnboarding() {
   g('btn-create-wallet').onclick = ()=>showScreen('create');
   g('btn-import-wallet').onclick = ()=>showScreen('import');
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  CREATE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function initCreate() {
   let _p=null;
   g('btn-generate').onclick = async()=>{
-    showLoading('Generating phraseâ€¦');
+    showLoading('Generating phraseÃ¢â‚¬Â¦');
     try{ const{kp,mnemonic}=await genWallet(); _p={kp,mnemonic}; renderGrid(mnemonic); hide('create-step-1'); show('create-step-2'); }
     catch(e){ await showAlert('Error',e.message); }
     finally{ hideLoading(); }
@@ -977,9 +977,9 @@ function renderGrid(mn) {
   ).join('');
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  IMPORT
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function initImport() {
   $$('.tab').forEach(t=>t.onclick=()=>{
     $$('.tab').forEach(x=>x.classList.remove('active'));
@@ -990,7 +990,7 @@ function initImport() {
     hide('import-error');
     const ph=g('input-mnemonic').value.trim();
     if(!ph){impErr('Enter your phrase.');return;}
-    showLoading('Importingâ€¦');
+    showLoading('ImportingÃ¢â‚¬Â¦');
     try{activateWallet(await phraseToWallet(ph));}
     catch(e){impErr(e.message);}
     finally{hideLoading();}
@@ -1004,9 +1004,9 @@ function initImport() {
 }
 const impErr=m=>{const e=g('import-error');e.textContent=m;show(e);};
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  HOME / WALLET
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function initHome() {
   g('btn-refresh-balance').onclick  = refreshHome;
   g('btn-copy-addr-home').onclick   = ()=>S.kp&&copy(S.kp.publicKey.toString(),'Address copied');
@@ -1019,8 +1019,8 @@ async function refreshHome() {
   const addr = S.kp.publicKey.toString();
 
   txt('home-address-display', trunc(addr, 8));
-  txt('bal-main','â€¦'); txt('bal-cents','');
-  txt('change-text','Loadingâ€¦');
+  txt('bal-main','Ã¢â‚¬Â¦'); txt('bal-cents','');
+  txt('change-text','LoadingÃ¢â‚¬Â¦');
 
   try {
     const [balRes, mktData] = await Promise.all([getBalance(addr), fetchMarketData()]);
@@ -1031,13 +1031,13 @@ async function refreshHome() {
     if (solMkt) S.price = solMkt.current_price;
 
     if (rpcFailed) {
-      // All RPCs failed â€” show retry state, don't show $0 as if balance is zero
-      txt('bal-main', 'â€”'); txt('bal-cents', '');
-      txt('bal-sol-row', 'â€” SOL');
+      // All RPCs failed Ã¢â‚¬â€ show retry state, don't show $0 as if balance is zero
+      txt('bal-main', 'Ã¢â‚¬â€'); txt('bal-cents', '');
+      txt('bal-sol-row', 'Ã¢â‚¬â€ SOL');
       const pill = g('change-pill');
       if(pill) { pill.style.color='var(--red)'; pill.style.borderColor='rgba(240,81,110,.2)'; pill.style.background='rgba(240,81,110,.06)'; }
       txt('change-text', 'Tap to retry');
-      toast('Could not reach Solana network â€” tap refresh', 'error', 6000);
+      toast('Could not reach Solana network Ã¢â‚¬â€ tap refresh', 'error', 6000);
     } else {
       if (S.price !== null) {
         const solUsd   = S.solBal * S.price;
@@ -1057,13 +1057,13 @@ async function refreshHome() {
 
       if (solMkt) {
         const chg = solMkt.price_change_percentage_24h || 0;
-        const arrow = chg>=0 ? 'â–²' : 'â–¼';
+        const arrow = chg>=0 ? 'Ã¢â€“Â²' : 'Ã¢â€“Â¼';
         const sign  = chg>=0 ? '+' : '';
         const pill  = g('change-pill');
         pill.style.color       = chg>=0 ? 'var(--grn)' : 'var(--red)';
         pill.style.borderColor = chg>=0 ? 'rgba(20,241,149,.2)' : 'rgba(240,81,110,.2)';
         pill.style.background  = chg>=0 ? 'rgba(20,241,149,.08)' : 'rgba(240,81,110,.06)';
-        txt('change-text', `${arrow} $${solMkt.current_price.toFixed(2)} Â· ${sign}${chg.toFixed(2)}%`);
+        txt('change-text', `${arrow} $${solMkt.current_price.toFixed(2)} Ã‚Â· ${sign}${chg.toFixed(2)}%`);
       } else {
         txt('change-text','Live');
       }
@@ -1083,19 +1083,19 @@ async function refreshHome() {
 
     renderRecentTxs(addr);
   } catch(e) {
-    txt('bal-main','â€”'); txt('bal-cents',''); 
+    txt('bal-main','Ã¢â‚¬â€'); txt('bal-cents',''); 
     const pill = g('change-pill');
     if(pill) { pill.style.color='var(--red)'; pill.style.borderColor='rgba(240,81,110,.2)'; pill.style.background='rgba(240,81,110,.06)'; }
     txt('change-text', 'Tap to retry');
     console.error('refreshHome error:', e.message, e);
     if (e.message?.includes('403') || e.message?.includes('Access forbidden')) {
-      toast('RPC access denied â€” try switching to a different network', 'error', 8000);
+      toast('RPC access denied Ã¢â‚¬â€ try switching to a different network', 'error', 8000);
     } else if (e.message?.includes('Failed to fetch') || e.message?.includes('Load failed') || e.message?.includes('NetworkError')) {
-      toast('Network error â€” tap refresh to try again', 'error', 7000);
+      toast('Network error Ã¢â‚¬â€ tap refresh to try again', 'error', 7000);
     } else if (e.message?.includes('all RPC endpoints failed')) {
-      toast('All RPC endpoints unavailable â€” tap refresh to retry', 'error', 7000);
+      toast('All RPC endpoints unavailable Ã¢â‚¬â€ tap refresh to retry', 'error', 7000);
     } else {
-      toast('Balance fetch failed â€” tap refresh', 'error', 6000);
+      toast('Balance fetch failed Ã¢â‚¬â€ tap refresh', 'error', 6000);
     }
   }
 }
@@ -1113,7 +1113,7 @@ async function renderRecentTxs(addr) {
 function txRow(tx) {
   const sent=tx.direction==='sent';
   const cls=sent?'sent':'received';
-  const sign=sent?'âˆ’':'+';
+  const sign=sent?'Ã¢Ë†â€™':'+';
   const ico=sent
     ? `<svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`
     : `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
@@ -1132,9 +1132,9 @@ function txRow(tx) {
   </a>`;
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  MARKETS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 let currentMktTab = 'trending';
 
 function initMarkets() {
@@ -1149,7 +1149,7 @@ function initMarkets() {
 
 async function refreshMarkets() {
   const list=g('market-list');
-  list.innerHTML='<div class="mkt-loading">Loading market dataâ€¦</div>';
+  list.innerHTML='<div class="mkt-loading">Loading market dataÃ¢â‚¬Â¦</div>';
   try {
     await fetchMarketData();
     renderMarketList();
@@ -1192,7 +1192,7 @@ function renderMarketList() {
       <div class="mkt-ico ${meta.cls}">${iconHtml}</div>
       <div class="mkt-info">
         <div class="mkt-name">${esc(meta.name||coin.name)}</div>
-        <div class="mkt-meta">${esc(mc)}${mc&&vol?' Â· ':''}${esc(vol)}</div>
+        <div class="mkt-meta">${esc(mc)}${mc&&vol?' Ã‚Â· ':''}${esc(vol)}</div>
       </div>
       <div class="mkt-right">
         <div class="mkt-price">${price}</div>
@@ -1215,9 +1215,9 @@ function renderMarketList() {
   });
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-//  SEND â€” SOL + USDC + PYUSD
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+//  SEND Ã¢â‚¬â€ SOL + USDC + PYUSD
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 
 // SOL quick-amount presets vs stablecoin presets
 const SOL_QUICK   = ['0.001','0.005','0.01','0.1','0.5','1'];
@@ -1271,7 +1271,7 @@ function initSend() {
   g('btn-send-another').onclick = resetSend;
   g('btn-copy-sig').onclick     = () => {
     const v = g('result-signature')?.textContent;
-    if (v && v !== 'â€”') copy(v, 'Signature copied');
+    if (v && v !== 'Ã¢â‚¬â€') copy(v, 'Signature copied');
   };
 }
 
@@ -1292,7 +1292,7 @@ function _onTokenChange() {
     txt('send-bal-token', 'SOL');
   } else {
     const bal = tokenBals[currentToken];
-    txt('send-bal-display', bal !== null ? bal.toFixed(2) : 'â€”');
+    txt('send-bal-display', bal !== null ? bal.toFixed(2) : 'Ã¢â‚¬â€');
     txt('send-bal-token', currentToken);
   }
 
@@ -1307,8 +1307,8 @@ function _onTokenChange() {
   const feeNote = g('fee-note-text');
   if (feeNote) {
     feeNote.textContent = isSOL
-      ? '~0.000005 SOL network fee Â· No wallet fee'
-      : '~0.000005 SOL network fee Â· No token fee Â· FREE transfer';
+      ? '~0.000005 SOL network fee Ã‚Â· No wallet fee'
+      : '~0.000005 SOL network fee Ã‚Â· No token fee Ã‚Â· FREE transfer';
   }
 
   // Clear amount input and USD estimate
@@ -1323,15 +1323,15 @@ function updateSendUsdEst() {
 
   if (!isNaN(amt) && amt > 0) {
     if (currentToken === 'SOL' && S.price !== null) {
-      est.textContent = `â‰ˆ $${(amt * S.price).toFixed(2)} USD`;
+      est.textContent = `Ã¢â€°Ë† $${(amt * S.price).toFixed(2)} USD`;
     } else if (currentToken !== 'SOL') {
       // Stablecoins are 1:1 USD
-      est.textContent = `â‰ˆ $${amt.toFixed(2)} USD`;
+      est.textContent = `Ã¢â€°Ë† $${amt.toFixed(2)} USD`;
     } else {
-      est.textContent = 'â‰ˆ $0.00 USD';
+      est.textContent = 'Ã¢â€°Ë† $0.00 USD';
     }
   } else {
-    est.textContent = 'â‰ˆ $0.00 USD';
+    est.textContent = 'Ã¢â€°Ë† $0.00 USD';
   }
 }
 
@@ -1372,7 +1372,7 @@ async function previewSend() {
   if (!amt || parseFloat(amt) <= 0) { sendErr('Enter an amount greater than zero.'); return; }
 
   if (currentToken === 'SOL') {
-    // â”€â”€ SOL path â”€â”€
+    // Ã¢â€â‚¬Ã¢â€â‚¬ SOL path Ã¢â€â‚¬Ã¢â€â‚¬
     let lamps;
     try { lamps = parseLamports(amt); } catch (e) { sendErr(e.message); return; }
 
@@ -1382,7 +1382,7 @@ async function previewSend() {
       txt('send-bal-display', S.solBal.toFixed(6));
     } catch (_) {}
 
-    showLoading('Fetching live feeâ€¦');
+    showLoading('Fetching live feeÃ¢â‚¬Â¦');
     try {
       const est = await estimateFee(S.kp.publicKey.toString(), to, amt);
 
@@ -1395,7 +1395,7 @@ async function previewSend() {
 
       const usdEl = g('preview-usd');
       if (usdEl && S.price !== null) {
-        usdEl.textContent = `â‰ˆ $${(parseFloat(est.amount_sol) * S.price).toFixed(2)} USD`;
+        usdEl.textContent = `Ã¢â€°Ë† $${(parseFloat(est.amount_sol) * S.price).toFixed(2)} USD`;
       } else if (usdEl) { usdEl.textContent = ''; }
 
       // Update preview coin icon
@@ -1423,7 +1423,7 @@ async function previewSend() {
     }
 
   } else {
-    // â”€â”€ SPL token path (USDC / PYUSD) â”€â”€
+    // Ã¢â€â‚¬Ã¢â€â‚¬ SPL token path (USDC / PYUSD) Ã¢â€â‚¬Ã¢â€â‚¬
     let rawUnits;
     try { rawUnits = parseSplUnits(amt, SPL_TOKENS[currentToken].decimals); } catch (e) { sendErr(e.message); return; }
 
@@ -1454,7 +1454,7 @@ async function previewSend() {
     txt('preview-balance',   `${Math.max(0, available - amtFloat).toFixed(2)} ${currentToken}`);
 
     const usdEl = g('preview-usd');
-    if (usdEl) usdEl.textContent = `â‰ˆ $${amtFloat.toFixed(2)} USD`;
+    if (usdEl) usdEl.textContent = `Ã¢â€°Ë† $${amtFloat.toFixed(2)} USD`;
 
     // Update preview coin icon
     const coinEl = g('sp-coin-icon');
@@ -1473,7 +1473,7 @@ async function previewSend() {
 async function execSend() {
   if (!S.kp || !S.pending) return;
   g('btn-confirm-send').disabled = true;
-  showLoading('Signing & broadcastingâ€¦');
+  showLoading('Signing & broadcastingÃ¢â‚¬Â¦');
   try {
     let b64, successMsg;
 
@@ -1496,17 +1496,17 @@ async function execSend() {
     hide('send-step-preview');
     show('send-step-result');
     show('send-result-success');
-    toast('Sent! ðŸš€', 'success', 5000);
+    toast('Sent! Ã°Å¸Å¡â‚¬', 'success', 5000);
     setTimeout(refreshHome, 3000);
   } catch (e) {
     // Make error message as specific as possible
     let msg = e.message || 'Transaction failed.';
     if (msg.includes('simulation failed')) {
-      msg = 'Transaction simulation failed â€” check your token balance and try again.';
+      msg = 'Transaction simulation failed Ã¢â‚¬â€ check your token balance and try again.';
     } else if (msg.includes('insufficient')) {
       msg = 'Insufficient balance to complete this transaction.';
     } else if (msg.includes('blockhash')) {
-      msg = 'Transaction expired â€” please try again.';
+      msg = 'Transaction expired Ã¢â‚¬â€ please try again.';
     }
     txt('result-error-msg', msg);
     hide('send-result-success');
@@ -1523,9 +1523,9 @@ async function execSend() {
 
 const sendErr = m => { const e = g('send-form-error'); e.textContent = m; show(e); };
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  RECEIVE
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function initReceive() {
   g('btn-copy-address').onclick =()=>S.kp&&copy(S.kp.publicKey.toString(),'Address copied');
   g('btn-share-address').onclick=async()=>{
@@ -1583,9 +1583,9 @@ async function refreshReceive() {
   hide(loading); show(canvas);
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  HISTORY
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function initHistory() {
   g('btn-refresh-history').onclick=()=>loadHistory(0);
   g('btn-hist-prev').onclick=()=>{if(S.histPage>0)loadHistory(S.histPage-1);};
@@ -1595,7 +1595,7 @@ async function loadHistory(page) {
   if(!S.kp)return;
   S.histPage=page;
   const list=g('history-list');
-  list.innerHTML='<div class="tx-empty">Loadingâ€¦</div>';
+  list.innerHTML='<div class="tx-empty">LoadingÃ¢â‚¬Â¦</div>';
   try{
     const d=await getTxHistory(S.kp.publicKey.toString(),HIST_LIMIT,page*HIST_LIMIT);
     if(!d.transactions?.length){
@@ -1611,9 +1611,9 @@ async function loadHistory(page) {
   }catch(e){list.innerHTML=`<div class="tx-empty">${esc(e.message)}</div>`;}
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  SETTINGS
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function initSettings() {
   g('btn-export-address').onclick=()=>S.kp&&copy(S.kp.publicKey.toString(),'Address copied');
   $$('.np').forEach(b=>b.onclick=()=>{g('input-custom-rpc').value=b.dataset.rpc;applyNet(b.dataset.rpc,b.dataset.net);});
@@ -1629,8 +1629,8 @@ function initSettings() {
     if(!ok||!S.kp)return;
     txt('privkey-display',bs58.encode(S.kp.secretKey));show('privkey-display-area');hide('btn-show-privkey');
   };
-  g('btn-hide-privkey').onclick=()=>{txt('privkey-display','â€”');hide('privkey-display-area');show('btn-show-privkey');};
-  g('btn-copy-privkey').onclick=()=>{const v=g('privkey-display').textContent;if(v&&v!=='â€”')copy(v,'Key copied');};
+  g('btn-hide-privkey').onclick=()=>{txt('privkey-display','Ã¢â‚¬â€');hide('privkey-display-area');show('btn-show-privkey');};
+  g('btn-copy-privkey').onclick=()=>{const v=g('privkey-display').textContent;if(v&&v!=='Ã¢â‚¬â€')copy(v,'Key copied');};
   g('btn-remove-wallet').onclick=async()=>{
     const ok=await showAlert('Remove Wallet','Your SOL stays on-chain. Restore with your phrase.',{cancel:true});
     if(!ok)return;
@@ -1652,9 +1652,9 @@ function refreshSettings(){
   updateNetBadge();
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
-//  NAV â€” wire ALL data-screen + data-back
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+//  NAV Ã¢â‚¬â€ wire ALL data-screen + data-back
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 function initNav() {
   $$('.bn[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
   $$('[data-back]').forEach(b=>b.onclick=()=>showScreen(b.dataset.back));
@@ -1664,15 +1664,15 @@ function initNav() {
   });
 }
 
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 //  BOOT
-// â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
+// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
 document.addEventListener('DOMContentLoaded', ()=>{
   if (!window.solanaWeb3) {
     document.body.innerHTML=`
       <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#13131a;color:#f0f0f5;font-family:sans-serif;text-align:center;padding:2rem">
         <div>
-          <div style="font-size:3rem;margin-bottom:1rem;color:#14f195">â—ˆ</div>
+          <div style="font-size:3rem;margin-bottom:1rem;color:#14f195">Ã¢â€”Ë†</div>
           <h2 style="margin-bottom:.5rem">Vendor libraries missing</h2>
           <p style="color:#8888a8;margin:.75rem 0 1.5rem;font-size:.9rem">
             Run <code style="background:#1a1a24;padding:.2rem .5rem;border-radius:6px">frontend\\download-vendors.ps1</code>
