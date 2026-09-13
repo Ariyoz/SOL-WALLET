@@ -1,18 +1,21 @@
 /**
- * SOL Wallet app.js
+ * SOL Wallet app.js v2.1.0
  *
  * Balance/Send/History: Direct Solana RPC via web3.js (no backend needed)
  * Market data: CoinGecko public API
- * Signing: LOCAL only Ã¢â‚¬â€ private key never leaves device
+ * Signing: LOCAL only — private key never leaves device
  * Backend (optional): set API to your Render URL for fee estimation + QR
  */
 'use strict';
 
-const APP_VERSION = '2.0.1'; // cache bust - findSourceTokenAccount fix
+const APP_VERSION = '2.3.1'; // swap screen + Jupiter API
 console.log('[SOL Wallet] Version:', APP_VERSION);
 
 const API        = 'https://sol-wallet-1.onrender.com'; // Render backend
 const BACKEND_OK  = true; // backend is live
+
+// USDC fee config — loaded from backend on startup, used in send preview
+const USDC_FEE_DEFAULT = { fee_usdc_units: 10000, fee_usdc: '0.01', fee_payer_configured: false };
 
 // Public CORS-friendly RPC endpoints (tried in order on fallback)
 const FALLBACK_RPCS = [
@@ -23,7 +26,7 @@ const FALLBACK_RPCS = [
 const STOR       = { kp:'sw_kp', rpc:'sw_rpc', net:'sw_net' };
 const HIST_LIMIT = 20;
 
-// Ã¢â€â‚¬ SPL Token mint addresses Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ SPL Token mint addresses ──────────────────────────────────────────────────
 const SPL_TOKENS = {
   USDC: {
     name:     'USD Coin',
@@ -42,7 +45,7 @@ const SPL_TOKENS = {
     mainnet:  '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo',
     decimals: 6,
     color:    'pyusd-col',
-    icon:     'Ã¢â€šÂ±',
+    icon:     '₱',
     usdPrice: 1.0,
   },
 };
@@ -52,7 +55,7 @@ let currentToken = 'SOL';
 // Cached token balances { uiAmount: number | null }
 const tokenBals = { USDC: null, PYUSD: null };
 
-// Ã¢â€â‚¬ Coin SVG icons (inline, no external deps) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Coin SVG icons (inline, no external deps) ────────────────────────────────
 const COIN_ICONS = {
   SOL: `<svg viewBox="0 0 646 646" width="22" height="22" xmlns="http://www.w3.org/2000/svg">
     <path fill="#fff" d="M108.53 478.77a17.6 17.6 0 0112.45-5.16h477.71a8.8 8.8 0 016.22 15.02l-81.55 81.55a17.6 17.6 0 01-12.45 5.16H32.7a8.8 8.8 0 01-6.22-15.02z"/>
@@ -103,7 +106,7 @@ const COIN_ICONS = {
   </svg>`,
 };
 
-// Ã¢â€â‚¬ Market coins to fetch Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Market coins to fetch ────────────────────────────────────────────────────
 const MARKET_COINS = [
   { id:'solana',      sym:'SOL',  name:'Solana',    cls:'sol-ico',  icon:'SOL'  },
   { id:'bitcoin',     sym:'BTC',  name:'Bitcoin',   cls:'btc-ico',  icon:'BTC'  },
@@ -115,23 +118,24 @@ const MARKET_COINS = [
   { id:'binancecoin', sym:'BNB',  name:'BNB',       cls:'bnb-ico',  icon:'BNB'  },
 ];
 
-// Ã¢â€â‚¬ State Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ State ────────────────────────────────────────────────────────────────────
 const S = {
   kp: null, conn: null, histPage: 0,
   pending: null, price: null, solBal: 0,
   marketData: [], lastMarketFetch: 0,
+  usdcFee: { ...USDC_FEE_DEFAULT },  // loaded from backend on startup
 };
 let w3;
 
-// Ã¢â€â‚¬ DOM Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ DOM ──────────────────────────────────────────────────────────────────────
 const g    = id  => document.getElementById(id);
 const $$   = sel => [...document.querySelectorAll(sel)];
 const show = el  => (typeof el==='string'?g(el):el)?.classList.remove('hidden');
 const hide = el  => (typeof el==='string'?g(el):el)?.classList.add('hidden');
 const txt  = (id,v) => { const e=g(id); if(e) e.textContent=v; };
 const esc  = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
-const trunc = (a,n=6) => !a||a.length<=n*2 ? a : `${a.slice(0,n)}Ã¢â‚¬Â¦${a.slice(-n)}`;
-const fmtTs = ts => ts ? new Date(ts*1000).toLocaleString([],{dateStyle:'short',timeStyle:'short'}) : 'Ã¢â‚¬â€';
+const trunc = (a,n=6) => !a||a.length<=n*2 ? a : `${a.slice(0,n)}…${a.slice(-n)}`;
+const fmtTs = ts => ts ? new Date(ts*1000).toLocaleString([],{dateStyle:'short',timeStyle:'short'}) : '—';
 const fmtUSD = n => {
   if (n >= 1e12) return `$${(n/1e12).toFixed(2)}T`;
   if (n >= 1e9)  return `$${(n/1e9).toFixed(2)}B`;
@@ -151,10 +155,11 @@ function showScreen(name) {
     history: ()=>loadHistory(0),
     settings:refreshSettings,
     send:    resetSend,
+    swap:    resetSwap,
   }[name]||Function.prototype)();
 }
 
-// Ã¢â€â‚¬ Toast Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Toast ────────────────────────────────────────────────────────────────────
 function toast(msg, type='', ms=3200) {
   const t = document.createElement('div');
   t.className = `toast${type?' '+type:''}`;
@@ -163,8 +168,8 @@ function toast(msg, type='', ms=3200) {
   setTimeout(()=>t.remove(), ms);
 }
 
-// Ã¢â€â‚¬ Modals Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-function showLoading(msg='Please waitÃ¢â‚¬Â¦'){txt('modal-loading-text',msg);show('modal-loading');}
+// ─ Modals ───────────────────────────────────────────────────────────────────
+function showLoading(msg='Please wait…'){txt('modal-loading-text',msg);show('modal-loading');}
 function hideLoading(){hide('modal-loading');}
 function showAlert(title,body,{cancel=false}={}) {
   return new Promise(res=>{
@@ -176,11 +181,11 @@ function showAlert(title,body,{cancel=false}={}) {
   });
 }
 
-// Ã¢â€â‚¬ Lamport helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Lamport helpers ──────────────────────────────────────────────────────────
 const SOL9 = 1_000_000_000n;
 function parseLamports(raw) {
   const s = String(raw).trim();
-  if (!s || !/^\d+(\.\d+)?$/.test(s)) throw new Error('Invalid amount Ã¢â‚¬â€ digits only, e.g. 0.001');
+  if (!s || !/^\d+(\.\d+)?$/.test(s)) throw new Error('Invalid amount — digits only, e.g. 0.001');
   const [w,f=''] = s.split('.');
   if (f.length>9) throw new Error('Max 9 decimal places');
   const v = BigInt(w)*SOL9 + BigInt(f.padEnd(9,'0'));
@@ -191,7 +196,7 @@ function parseLamports(raw) {
 /** Parse a stablecoin amount string into raw integer units (6 decimals) */
 function parseSplUnits(raw, decimals) {
   const s = String(raw).trim();
-  if (!s || !/^\d+(\.\d+)?$/.test(s)) throw new Error('Invalid amount Ã¢â‚¬â€ digits only, e.g. 10');
+  if (!s || !/^\d+(\.\d+)?$/.test(s)) throw new Error('Invalid amount — digits only, e.g. 10');
   const [w, f=''] = s.split('.');
   if (f.length > decimals) throw new Error(`Max ${decimals} decimal places`);
   const v = BigInt(w) * (10n ** BigInt(decimals)) + BigInt(f.padEnd(decimals,'0'));
@@ -199,17 +204,17 @@ function parseSplUnits(raw, decimals) {
   return v;
 }
 
-// Ã¢â€â‚¬ Clipboard Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Clipboard ────────────────────────────────────────────────────────────────
 async function copy(text, label='Copied') {
   try { await navigator.clipboard.writeText(text); }
   catch(_) {
     const el=Object.assign(document.createElement('textarea'),{value:text,style:'position:fixed;opacity:0'});
     document.body.appendChild(el); el.select(); document.execCommand('copy'); el.remove();
   }
-  toast(`${label} Ã¢Å“â€œ`, 'success');
+  toast(`${label} ✓`, 'success');
 }
 
-// Ã¢â€â‚¬ Backend API helpers (kept for future use) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Backend API helpers (kept for future use) ─────────────────────────────────
 async function apiGet(path) {
   const r = await fetch(API+path, {signal:AbortSignal.timeout(10000)});
   const d = await r.json();
@@ -226,7 +231,7 @@ async function apiPost(path, body) {
   return d;
 }
 
-// Ã¢â€â‚¬ API Ã¢â‚¬â€ direct Solana RPC, no backend required Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ API — direct Solana RPC, no backend required ──────────────────────────────
 
 async function getBalance(address) {
   // 1) Render backend /wallet/balance
@@ -287,7 +292,7 @@ async function broadcastTx(b64) {
 async function getTxHistory(address, limit, offset) {
   const { network } = loadNet();
 
-  // 1) Try dedicated backend endpoint Ã¢â‚¬â€ fetches from chain with proper detail
+  // 1) Try dedicated backend endpoint — fetches from chain with proper detail
   try {
     const r = await fetch(
       `${API}/wallet/signatures/${address}?limit=${limit}&offset=${offset}`,
@@ -377,7 +382,7 @@ async function getTxHistory(address, limit, offset) {
 
     const transactions = sigs.map((s, i) => {
       const result = txDetails.find(d => d.id === i + 1)?.result;
-      let direction = 'sent', amount_sol = 'Ã¢â‚¬â€', counterparty = '', fee_sol = '0.000005';
+      let direction = 'sent', amount_sol = '—', counterparty = '', fee_sol = '0.000005';
 
       if (result?.meta) {
         fee_sol = result.meta.fee ? (result.meta.fee / 1e9).toFixed(9) : fee_sol;
@@ -414,7 +419,7 @@ async function getTxHistory(address, limit, offset) {
 
 const getQrCode = () => Promise.resolve(null);
 
-// Ã¢â€â‚¬ Market data (CoinGecko Ã¢â‚¬â€ direct browser, public API) Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Market data (CoinGecko — direct browser, public API) ─────────────────────
 async function fetchMarketData() {
   const now = Date.now();
   if (S.marketData.length && now - S.lastMarketFetch < 60000) return S.marketData;
@@ -436,7 +441,7 @@ async function fetchMarketData() {
   }
 }
 
-// Ã¢â€â‚¬ Storage Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Storage ──────────────────────────────────────────────────────────────────
 const saveKp  = kp    => localStorage.setItem(STOR.kp, bs58.encode(kp.secretKey));
 const clearKp = ()    => localStorage.removeItem(STOR.kp);
 const saveNet = (u,n) => { localStorage.setItem(STOR.rpc,u); localStorage.setItem(STOR.net,n); };
@@ -448,12 +453,12 @@ function loadKp() {
   try { return w3.Keypair.fromSecretKey(bs58.decode(raw)); } catch(_) { return null; }
 }
 
-// Ã¢â€â‚¬ Connection helper Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Connection helper ─────────────────────────────────────────────────────────
 
 /** Get the first CORS-friendly RPC URL that responds successfully */
-/** Returns the best RPC URL to use Ã¢â‚¬â€ always prefers the backend proxy */
+/** Returns the best RPC URL to use — always prefers the backend proxy */
 async function getWorkingRpcUrl() {
-  // Always use backend /rpc proxy Ã¢â‚¬â€ it never 403s from browser
+  // Always use backend /rpc proxy — it never 403s from browser
   return `${API}/rpc-passthrough`;
 }
 
@@ -471,7 +476,7 @@ async function rpcCall(method, params, timeoutMs = 12000) {
   return j.result;
 }
 
-/** Fetch the latest blockhash Ã¢â‚¬â€ always via backend, never direct RPC */
+/** Fetch the latest blockhash — always via backend, never direct RPC */
 async function fetchLatestBlockhash() {
   // Use cached blockhash if fresh (< 30s)
   if (S._cachedBlockhash && (Date.now() - S._cachedBlockhash.ts) < 30000) {
@@ -508,10 +513,10 @@ async function fetchLatestBlockhash() {
     }
   } catch (_) { /* fall through */ }
 
-  throw new Error('Could not fetch blockhash Ã¢â‚¬â€ backend unavailable');
+  throw new Error('Could not fetch blockhash — backend unavailable');
 }
 
-/** Send a raw signed transaction Ã¢â‚¬â€ tries backend first, then /rpc proxy */
+/** Send a raw signed transaction — tries backend first, then /rpc proxy */
 async function sendRawTxFetch(serializedBytes) {
   const b64 = btoa(String.fromCharCode(...serializedBytes));
 
@@ -558,7 +563,7 @@ function getConn() {
   return S.conn;
 }
 
-// Ã¢â€â‚¬ SLIP-0010 BIP-44 m/44'/501'/0'/0' Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ SLIP-0010 BIP-44 m/44'/501'/0'/0' ────────────────────────────────────────
 async function hmac512(key, data) {
   const k = await crypto.subtle.importKey('raw',key,{name:'HMAC',hash:'SHA-512'},false,['sign']);
   return new Uint8Array(await crypto.subtle.sign('HMAC',k,data));
@@ -574,11 +579,11 @@ async function slip10(seed) {
   return IL;
 }
 
-// Ã¢â€â‚¬ BIP-39 Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ BIP-39 ───────────────────────────────────────────────────────────────────
 const b39 = () => { if(window.bip39?.generateMnemonic) return window.bip39; throw new Error('bip39 not loaded'); };
 async function phraseToWallet(phrase) {
   const b=b39(), n=phrase.trim().toLowerCase().replace(/\s+/g,' ');
-  if (!b.validateMnemonic(n)) throw new Error('Invalid recovery phrase Ã¢â‚¬â€ check each word');
+  if (!b.validateMnemonic(n)) throw new Error('Invalid recovery phrase — check each word');
   return w3.Keypair.fromSeed(await slip10(new Uint8Array(await b.mnemonicToSeed(n))));
 }
 async function genWallet() {
@@ -591,10 +596,10 @@ function keyToWallet(b58) {
   return w3.Keypair.fromSecretKey(bytes);
 }
 
-// Ã¢â€â‚¬ SOL Signing Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ SOL Signing ───────────────────────────────────────────────────────────────
 async function signTransfer(to, lamps) {
   if (!S.kp) throw new Error('No wallet');
-  // Use raw fetch for blockhash Ã¢â‚¬â€ avoids web3.js hitting forbidden RPC
+  // Use raw fetch for blockhash — avoids web3.js hitting forbidden RPC
   const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
   const tx = new w3.Transaction();
   tx.add(w3.SystemProgram.transfer({fromPubkey:S.kp.publicKey,toPubkey:new w3.PublicKey(to),lamports:lamps}));
@@ -603,7 +608,7 @@ async function signTransfer(to, lamps) {
   return btoa(String.fromCharCode(...tx.serialize()));
 }
 
-// Ã¢â€â‚¬ SPL Token helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ SPL Token helpers ─────────────────────────────────────────────────────────
 
 function getSplMint(symbol) {
   const { network } = loadNet();
@@ -612,9 +617,9 @@ function getSplMint(symbol) {
   return network === 'mainnet-beta' ? tk.mainnet : tk.devnet;
 }
 
-/** Find the actual token account address from chain Ã¢â‚¬â€ queries both token programs */
+/** Find the actual token account address from chain — queries both token programs */
 async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId) {
-  // Try with { mint: mintAddress } first Ã¢â‚¬â€ works for legacy SPL tokens
+  // Try with { mint: mintAddress } first — works for legacy SPL tokens
   try {
     const r = await fetch(`${API}/rpc`, {
       method: 'POST',
@@ -664,12 +669,12 @@ async function findSourceTokenAccount(walletAddress, mintAddress, tokenProgramId
 
 /** Derive the Associated Token Account (ATA) address using raw bytes */
 function getATA(walletPubkey, mintAddress, tokenProgramId) {
-  // Default to legacy token program Ã¢â‚¬â€ Token-2022 ATAs use Token-2022 program ID
+  // Default to legacy token program — Token-2022 ATAs use Token-2022 program ID
   const TOKEN_PROG = new w3.PublicKey(tokenProgramId || 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA');
   const ASSOC_PROG = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
   const mint       = new w3.PublicKey(mintAddress);
 
-  // Use toBytes() instead of toBuffer() Ã¢â‚¬â€ doesn't need Buffer polyfill
+  // Use toBytes() instead of toBuffer() — doesn't need Buffer polyfill
   const walletBytes = walletPubkey.toBytes();
   const tokenBytes  = TOKEN_PROG.toBytes();
   const mintBytes   = mint.toBytes();
@@ -681,7 +686,7 @@ function getATA(walletPubkey, mintAddress, tokenProgramId) {
   return ata;
 }
 
-/** Fetch SPL token balance via /rpc proxy only Ã¢â‚¬â€ no direct RPC calls */
+/** Fetch SPL token balance via /rpc proxy only — no direct RPC calls */
 async function getSplBalance(walletPubkey, mintAddress) {
   const ata = getATA(walletPubkey, mintAddress);
   try {
@@ -720,119 +725,120 @@ function writeU64LE(arr, value, offset) {
 async function signSplTransfer(toWalletAddress, symbol, amount) {
   if (!S.kp) throw new Error('No wallet loaded');
 
-  const IS_TOKEN_2022 = symbol === 'PYUSD';
-  const TOKEN_PROG_ID = IS_TOKEN_2022
-    ? 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'
-    : 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
-  const TOKEN_PROG  = new w3.PublicKey(TOKEN_PROG_ID);
-  const SYS_PROG    = w3.SystemProgram.programId;
-  // AToken program Ã¢â‚¬â€ native Solana program for creating Associated Token Accounts
-  const ASSOC_PROG  = new w3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL');
-  const mintAddr = getSplMint(symbol);
+  // ── USDC: use backend prepare endpoint (handles ATA, fee, simulation) ──────
+  if (symbol === 'USDC') {
+    // Try the new backend prepare endpoint first
+    // If backend doesn't have this endpoint yet (old Render deploy), fall back to direct
+    try {
+      const test = await fetch(`${API}/transaction/usdc-fee`, { signal: AbortSignal.timeout(5000) });
+      const feeData = test.ok ? await test.json() : null;
+      if (feeData?.fee_usdc_units !== undefined) {
+        // New backend is live — use prepare endpoint
+        return await prepareAndSignUsdc(toWalletAddress, amount);
+      }
+    } catch (_) {}
+    // Fall through to legacy direct path if backend doesn't support new endpoints
+  }
+
+  // ── PYUSD: direct transfer (Token-2022, no wallet fee) ───────────────────
+  const TOKEN_PROG_ID = 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb';
+  const TOKEN_PROG    = new w3.PublicKey(TOKEN_PROG_ID);
+  const mintAddr      = getSplMint(symbol);
   if (!mintAddr) throw new Error(`Unknown token: ${symbol}`);
 
-  const tk       = SPL_TOKENS[symbol];
-  const mint     = new w3.PublicKey(mintAddr);
-  const toPubkey = new w3.PublicKey(toWalletAddress);
-  const fromPub  = S.kp.publicKey;
+  const tk      = SPL_TOKENS[symbol];
+  const mint    = new w3.PublicKey(mintAddr);
+  const toPub   = new w3.PublicKey(toWalletAddress);
+  const fromPub = S.kp.publicKey;
 
   const rawAmount = parseSplUnits(String(amount), tk.decimals);
   if (rawAmount <= 0n) throw new Error('Amount must be greater than zero');
 
-  // Get blockhash via backend
-  const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
-
-  // Find sender's actual token account from chain
   const fromATA = await findSourceTokenAccount(fromPub.toString(), mintAddr, TOKEN_PROG_ID);
-  // Find recipient's actual token account from chain Ã¢â‚¬â€ don't assume derived ATA
-  const toATA   = await findSourceTokenAccount(toPubkey.toString(), mintAddr, TOKEN_PROG_ID);
+  const toATA   = await findSourceTokenAccount(toPub.toString(),   mintAddr, TOKEN_PROG_ID);
 
-  // Recipient has an account if the lookup returned something different from the derived ATA
-  // OR if the derived ATA itself actually exists on-chain
-  const derivedATA   = getATA(toPubkey, mintAddr, TOKEN_PROG_ID);
-  const lookupDiffers = toATA.toString() !== derivedATA.toString();
+  const toATAInfo = await fetch(`${API}/rpc`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getAccountInfo',
+      params:[toATA.toString(), { encoding:'base64' }] }),
+    signal: AbortSignal.timeout(8000),
+  }).then(r => r.json()).catch(() => null);
 
-  // Also check if the derived ATA exists (it might match but already exist)
-  let derivedATAExists = false;
-  if (!lookupDiffers) {
-    try {
-      const r = await fetch(`${API}/rpc`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getAccountInfo',
-          params:[derivedATA.toString(), { encoding:'base64' }] }),
-        signal: AbortSignal.timeout(8000),
-      });
-      const j = await r.json();
-      derivedATAExists = j?.result?.value != null;
-    } catch (_) {}
+  if (!toATAInfo?.result?.value) {
+    throw new Error(
+      `Recipient has no PYUSD account. They need to receive PYUSD first to set up their account.`
+    );
   }
 
-  const recipientHasAccount = lookupDiffers || derivedATAExists;
-
+  const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
   const tx = new w3.Transaction();
-  tx.recentBlockhash      = blockhash;
-  tx.feePayer             = fromPub;
-  tx.lastValidBlockHeight = lastValidBlockHeight;
+  tx.recentBlockhash = blockhash; tx.feePayer = fromPub; tx.lastValidBlockHeight = lastValidBlockHeight;
 
-  if (!recipientHasAccount) {
-    // Recipient has no token account Ã¢â‚¬â€ create one
-    tx.add(new w3.TransactionInstruction({
-      programId: ASSOC_PROG,
-      keys: [
-        { pubkey: fromPub,  isSigner: true,  isWritable: true  },
-        { pubkey: toATA,    isSigner: false, isWritable: true  },
-        { pubkey: toPubkey, isSigner: false, isWritable: false },
-        { pubkey: mint,     isSigner: false, isWritable: false },
-        { pubkey: SYS_PROG, isSigner: false, isWritable: false },
-        { pubkey: TOKEN_PROG, isSigner: false, isWritable: false },
-      ],
-      data: new Uint8Array([1]), // CreateIdempotent
-    }));
-  }
-
-  if (IS_TOKEN_2022) {
-    // Token-2022 TransferChecked instruction (discriminator = 12)
-    // Required for PYUSD which has transfer hooks
-    const data = new Uint8Array(10);
-    data[0] = 12; // TransferChecked discriminator
-    writeU64LE(data, rawAmount, 1);
-    data[9] = tk.decimals; // decimals field
-
-    tx.add(new w3.TransactionInstruction({
-      programId: TOKEN_PROG,
-      keys: [
-        { pubkey: fromATA,  isSigner: false, isWritable: true  }, // source
-        { pubkey: mint,     isSigner: false, isWritable: false }, // mint (required by TransferChecked)
-        { pubkey: toATA,    isSigner: false, isWritable: true  }, // dest
-        { pubkey: fromPub,  isSigner: true,  isWritable: false }, // authority
-      ],
-      data,
-    }));
-  } else {
-    // Standard SPL Token Transfer (discriminator = 3)
-    const data = new Uint8Array(9);
-    data[0] = 3;
-    writeU64LE(data, rawAmount, 1);
-
-    tx.add(new w3.TransactionInstruction({
-      programId: TOKEN_PROG,
-      keys: [
-        { pubkey: fromATA, isSigner: false, isWritable: true  },
-        { pubkey: toATA,   isSigner: false, isWritable: true  },
-        { pubkey: fromPub, isSigner: true,  isWritable: false },
-      ],
-      data,
-    }));
-  }
+  const data = new Uint8Array(10);
+  data[0] = 12; writeU64LE(data, rawAmount, 1); data[9] = tk.decimals;
+  tx.add(new w3.TransactionInstruction({
+    programId: TOKEN_PROG,
+    keys: [
+      { pubkey: fromATA, isSigner: false, isWritable: true  },
+      { pubkey: mint,    isSigner: false, isWritable: false },
+      { pubkey: toATA,   isSigner: false, isWritable: true  },
+      { pubkey: fromPub, isSigner: true,  isWritable: false },
+    ],
+    data,
+  }));
 
   tx.sign(S.kp);
   return btoa(String.fromCharCode(...tx.serialize()));
 }
 
-// Ã¢â€â‚¬ SPL Balance loader Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+/**
+ * USDC send using the backend prepare endpoint.
+ * Backend builds the transaction (with optional ATA creation + fee transfer),
+ * partially signs with fee payer if configured.
+ * We add the user signature and return the fully-signed base64.
+ */
+async function prepareAndSignUsdc(toWalletAddress, amount) {
+  // Pre-check: if recipient needs ATA and no fee payer, verify sender has enough SOL
+  // This runs client-side before hitting the backend to give faster feedback
+  if (S.solBal < 0.000010) {
+    throw new Error(`Insufficient SOL for network fee. Need at least 0.000010 SOL, have ${S.solBal.toFixed(6)} SOL.`);
+  }
 
-// Ã¢â€â‚¬ SPL Balance loader Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
-// Uses getTokenAccountsByOwner Ã¢â‚¬â€ no ATA derivation needed, works reliably
+  const r = await fetch(`${API}/transaction/prepare-usdc`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from_address: S.kp.publicKey.toString(),
+      to_address:   toWalletAddress,
+      amount_usdc:  String(amount),
+    }),
+    signal: AbortSignal.timeout(30000),
+  });
+
+  if (!r.ok) {
+    const err = await r.json().catch(() => ({ message: `HTTP ${r.status}` }));
+    throw new Error(err.message || err.error || `Prepare failed: ${r.status}`);
+  }
+
+  const data = await r.json();
+
+  // Deserialize the partially-signed transaction
+  const txBytes = Uint8Array.from(atob(data.transaction_base64), c => c.charCodeAt(0));
+  const tx = w3.Transaction.from(txBytes);
+
+  // Add user signature
+  const { blockhash } = await fetchLatestBlockhash();
+  if (!tx.recentBlockhash) tx.recentBlockhash = blockhash;
+  tx.feePayer = S.kp.publicKey;
+  tx.partialSign(S.kp);
+
+  return btoa(String.fromCharCode(...tx.serialize({ requireAllSignatures: false })));
+}
+
+// ─ SPL Balance loader ────────────────────────────────────────────────────────
+
+// ─ SPL Balance loader ────────────────────────────────────────────────────────
+// Uses getTokenAccountsByOwner — no ATA derivation needed, works reliably
 
 async function loadSplBalances(walletPubkey) {
   const walletAddr = walletPubkey.toString();
@@ -852,7 +858,7 @@ async function loadSplBalances(walletPubkey) {
     PYUSD: pyusdMkt ? pyusdMkt.current_price : 1.0,
   };
 
-  // Fetch ALL token accounts for this wallet Ã¢â‚¬â€ query BOTH token programs
+  // Fetch ALL token accounts for this wallet — query BOTH token programs
   // (PYUSD uses Token-2022, USDC uses legacy Token program)
   try {
     const TOKEN_PROG      = 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
@@ -885,7 +891,7 @@ async function loadSplBalances(walletPubkey) {
       ...(j2?.result?.value || []),
     ];
 
-    // Build a map of mint Ã¢â€ â€™ uiAmount
+    // Build a map of mint → uiAmount
     const balMap = {};
     for (const acct of accounts) {
       const info = acct.account?.data?.parsed?.info;
@@ -934,7 +940,7 @@ async function loadSplBalances(walletPubkey) {
   }
 }
 
-// Ã¢â€â‚¬ Wallet activation Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬
+// ─ Wallet activation ─────────────────────────────────────────────────────────
 function activateWallet(kp) {
   S.kp=kp; S.conn=null; S.connVerified=false; S.workingRpc=null; saveKp(kp); updateNetBadge(); show('bottomnav'); showScreen('home');
 }
@@ -949,21 +955,21 @@ function updateNetBadge() {
   if (pill) { pill.textContent=lbl; pill.className=`net-pill ${cls}`; }
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 //  ONBOARDING
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 function initOnboarding() {
   g('btn-create-wallet').onclick = ()=>showScreen('create');
   g('btn-import-wallet').onclick = ()=>showScreen('import');
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 //  CREATE
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 function initCreate() {
   let _p=null;
   g('btn-generate').onclick = async()=>{
-    showLoading('Generating phraseÃ¢â‚¬Â¦');
+    showLoading('Generating phrase…');
     try{ const{kp,mnemonic}=await genWallet(); _p={kp,mnemonic}; renderGrid(mnemonic); hide('create-step-1'); show('create-step-2'); }
     catch(e){ await showAlert('Error',e.message); }
     finally{ hideLoading(); }
@@ -977,9 +983,9 @@ function renderGrid(mn) {
   ).join('');
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 //  IMPORT
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 function initImport() {
   $$('.tab').forEach(t=>t.onclick=()=>{
     $$('.tab').forEach(x=>x.classList.remove('active'));
@@ -990,7 +996,7 @@ function initImport() {
     hide('import-error');
     const ph=g('input-mnemonic').value.trim();
     if(!ph){impErr('Enter your phrase.');return;}
-    showLoading('ImportingÃ¢â‚¬Â¦');
+    showLoading('Importing…');
     try{activateWallet(await phraseToWallet(ph));}
     catch(e){impErr(e.message);}
     finally{hideLoading();}
@@ -1004,9 +1010,9 @@ function initImport() {
 }
 const impErr=m=>{const e=g('import-error');e.textContent=m;show(e);};
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 //  HOME / WALLET
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 function initHome() {
   g('btn-refresh-balance').onclick  = refreshHome;
   g('btn-copy-addr-home').onclick   = ()=>S.kp&&copy(S.kp.publicKey.toString(),'Address copied');
@@ -1019,8 +1025,8 @@ async function refreshHome() {
   const addr = S.kp.publicKey.toString();
 
   txt('home-address-display', trunc(addr, 8));
-  txt('bal-main','Ã¢â‚¬Â¦'); txt('bal-cents','');
-  txt('change-text','LoadingÃ¢â‚¬Â¦');
+  txt('bal-main','…'); txt('bal-cents','');
+  txt('change-text','Loading…');
 
   try {
     const [balRes, mktData] = await Promise.all([getBalance(addr), fetchMarketData()]);
@@ -1031,13 +1037,13 @@ async function refreshHome() {
     if (solMkt) S.price = solMkt.current_price;
 
     if (rpcFailed) {
-      // All RPCs failed Ã¢â‚¬â€ show retry state, don't show $0 as if balance is zero
-      txt('bal-main', 'Ã¢â‚¬â€'); txt('bal-cents', '');
-      txt('bal-sol-row', 'Ã¢â‚¬â€ SOL');
+      // All RPCs failed — show retry state, don't show $0 as if balance is zero
+      txt('bal-main', '—'); txt('bal-cents', '');
+      txt('bal-sol-row', '— SOL');
       const pill = g('change-pill');
       if(pill) { pill.style.color='var(--red)'; pill.style.borderColor='rgba(240,81,110,.2)'; pill.style.background='rgba(240,81,110,.06)'; }
       txt('change-text', 'Tap to retry');
-      toast('Could not reach Solana network Ã¢â‚¬â€ tap refresh', 'error', 6000);
+      toast('Could not reach Solana network — tap refresh', 'error', 6000);
     } else {
       if (S.price !== null) {
         const solUsd   = S.solBal * S.price;
@@ -1057,13 +1063,13 @@ async function refreshHome() {
 
       if (solMkt) {
         const chg = solMkt.price_change_percentage_24h || 0;
-        const arrow = chg>=0 ? 'Ã¢â€“Â²' : 'Ã¢â€“Â¼';
+        const arrow = chg>=0 ? '▲' : '▼';
         const sign  = chg>=0 ? '+' : '';
         const pill  = g('change-pill');
         pill.style.color       = chg>=0 ? 'var(--grn)' : 'var(--red)';
         pill.style.borderColor = chg>=0 ? 'rgba(20,241,149,.2)' : 'rgba(240,81,110,.2)';
         pill.style.background  = chg>=0 ? 'rgba(20,241,149,.08)' : 'rgba(240,81,110,.06)';
-        txt('change-text', `${arrow} $${solMkt.current_price.toFixed(2)} Ã‚Â· ${sign}${chg.toFixed(2)}%`);
+        txt('change-text', `${arrow} $${solMkt.current_price.toFixed(2)} · ${sign}${chg.toFixed(2)}%`);
       } else {
         txt('change-text','Live');
       }
@@ -1083,19 +1089,19 @@ async function refreshHome() {
 
     renderRecentTxs(addr);
   } catch(e) {
-    txt('bal-main','Ã¢â‚¬â€'); txt('bal-cents',''); 
+    txt('bal-main','—'); txt('bal-cents',''); 
     const pill = g('change-pill');
     if(pill) { pill.style.color='var(--red)'; pill.style.borderColor='rgba(240,81,110,.2)'; pill.style.background='rgba(240,81,110,.06)'; }
     txt('change-text', 'Tap to retry');
     console.error('refreshHome error:', e.message, e);
     if (e.message?.includes('403') || e.message?.includes('Access forbidden')) {
-      toast('RPC access denied Ã¢â‚¬â€ try switching to a different network', 'error', 8000);
+      toast('RPC access denied — try switching to a different network', 'error', 8000);
     } else if (e.message?.includes('Failed to fetch') || e.message?.includes('Load failed') || e.message?.includes('NetworkError')) {
-      toast('Network error Ã¢â‚¬â€ tap refresh to try again', 'error', 7000);
+      toast('Network error — tap refresh to try again', 'error', 7000);
     } else if (e.message?.includes('all RPC endpoints failed')) {
-      toast('All RPC endpoints unavailable Ã¢â‚¬â€ tap refresh to retry', 'error', 7000);
+      toast('All RPC endpoints unavailable — tap refresh to retry', 'error', 7000);
     } else {
-      toast('Balance fetch failed Ã¢â‚¬â€ tap refresh', 'error', 6000);
+      toast('Balance fetch failed — tap refresh', 'error', 6000);
     }
   }
 }
@@ -1113,7 +1119,7 @@ async function renderRecentTxs(addr) {
 function txRow(tx) {
   const sent=tx.direction==='sent';
   const cls=sent?'sent':'received';
-  const sign=sent?'Ã¢Ë†â€™':'+';
+  const sign=sent?'−':'+';
   const ico=sent
     ? `<svg viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>`
     : `<svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
@@ -1132,9 +1138,9 @@ function txRow(tx) {
   </a>`;
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 //  MARKETS
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 let currentMktTab = 'trending';
 
 function initMarkets() {
@@ -1149,7 +1155,7 @@ function initMarkets() {
 
 async function refreshMarkets() {
   const list=g('market-list');
-  list.innerHTML='<div class="mkt-loading">Loading market dataÃ¢â‚¬Â¦</div>';
+  list.innerHTML='<div class="mkt-loading">Loading market data…</div>';
   try {
     await fetchMarketData();
     renderMarketList();
@@ -1192,7 +1198,7 @@ function renderMarketList() {
       <div class="mkt-ico ${meta.cls}">${iconHtml}</div>
       <div class="mkt-info">
         <div class="mkt-name">${esc(meta.name||coin.name)}</div>
-        <div class="mkt-meta">${esc(mc)}${mc&&vol?' Ã‚Â· ':''}${esc(vol)}</div>
+        <div class="mkt-meta">${esc(mc)}${mc&&vol?' · ':''}${esc(vol)}</div>
       </div>
       <div class="mkt-right">
         <div class="mkt-price">${price}</div>
@@ -1215,9 +1221,9 @@ function renderMarketList() {
   });
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-//  SEND Ã¢â‚¬â€ SOL + USDC + PYUSD
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
+//  SEND — SOL + USDC + PYUSD
+// ══════════════════════════════════════════
 
 // SOL quick-amount presets vs stablecoin presets
 const SOL_QUICK   = ['0.001','0.005','0.01','0.1','0.5','1'];
@@ -1271,7 +1277,7 @@ function initSend() {
   g('btn-send-another').onclick = resetSend;
   g('btn-copy-sig').onclick     = () => {
     const v = g('result-signature')?.textContent;
-    if (v && v !== 'Ã¢â‚¬â€') copy(v, 'Signature copied');
+    if (v && v !== '—') copy(v, 'Signature copied');
   };
 }
 
@@ -1292,7 +1298,7 @@ function _onTokenChange() {
     txt('send-bal-token', 'SOL');
   } else {
     const bal = tokenBals[currentToken];
-    txt('send-bal-display', bal !== null ? bal.toFixed(2) : 'Ã¢â‚¬â€');
+    txt('send-bal-display', bal !== null ? bal.toFixed(2) : '—');
     txt('send-bal-token', currentToken);
   }
 
@@ -1307,8 +1313,8 @@ function _onTokenChange() {
   const feeNote = g('fee-note-text');
   if (feeNote) {
     feeNote.textContent = isSOL
-      ? '~0.000005 SOL network fee Ã‚Â· No wallet fee'
-      : '~0.000005 SOL network fee Ã‚Â· No token fee Ã‚Â· FREE transfer';
+      ? '~0.000005 SOL network fee · No wallet fee'
+      : `~0.000005 SOL network fee · ${currentToken === 'USDC' ? S.usdcFee.fee_usdc + ' USDC wallet fee' : 'No token fee · FREE transfer'}`;
   }
 
   // Clear amount input and USD estimate
@@ -1323,15 +1329,15 @@ function updateSendUsdEst() {
 
   if (!isNaN(amt) && amt > 0) {
     if (currentToken === 'SOL' && S.price !== null) {
-      est.textContent = `Ã¢â€°Ë† $${(amt * S.price).toFixed(2)} USD`;
+      est.textContent = `≈ $${(amt * S.price).toFixed(2)} USD`;
     } else if (currentToken !== 'SOL') {
       // Stablecoins are 1:1 USD
-      est.textContent = `Ã¢â€°Ë† $${amt.toFixed(2)} USD`;
+      est.textContent = `≈ $${amt.toFixed(2)} USD`;
     } else {
-      est.textContent = 'Ã¢â€°Ë† $0.00 USD';
+      est.textContent = '≈ $0.00 USD';
     }
   } else {
-    est.textContent = 'Ã¢â€°Ë† $0.00 USD';
+    est.textContent = '≈ $0.00 USD';
   }
 }
 
@@ -1353,6 +1359,8 @@ function resetSend() {
   hide('send-step-result');
   hide('send-result-success');
   hide('send-result-error');
+  const errLnk = g('result-error-explorer-link');
+  if (errLnk) { errLnk.href = '#'; hide(errLnk); }
   show('send-step-form');
   S.pending = null;
   g('btn-confirm-send').disabled = false;
@@ -1372,7 +1380,7 @@ async function previewSend() {
   if (!amt || parseFloat(amt) <= 0) { sendErr('Enter an amount greater than zero.'); return; }
 
   if (currentToken === 'SOL') {
-    // Ã¢â€â‚¬Ã¢â€â‚¬ SOL path Ã¢â€â‚¬Ã¢â€â‚¬
+    // ── SOL path ──
     let lamps;
     try { lamps = parseLamports(amt); } catch (e) { sendErr(e.message); return; }
 
@@ -1382,7 +1390,7 @@ async function previewSend() {
       txt('send-bal-display', S.solBal.toFixed(6));
     } catch (_) {}
 
-    showLoading('Fetching live feeÃ¢â‚¬Â¦');
+    showLoading('Fetching live fee…');
     try {
       const est = await estimateFee(S.kp.publicKey.toString(), to, amt);
 
@@ -1395,7 +1403,7 @@ async function previewSend() {
 
       const usdEl = g('preview-usd');
       if (usdEl && S.price !== null) {
-        usdEl.textContent = `Ã¢â€°Ë† $${(parseFloat(est.amount_sol) * S.price).toFixed(2)} USD`;
+        usdEl.textContent = `≈ $${(parseFloat(est.amount_sol) * S.price).toFixed(2)} USD`;
       } else if (usdEl) { usdEl.textContent = ''; }
 
       // Update preview coin icon
@@ -1423,7 +1431,7 @@ async function previewSend() {
     }
 
   } else {
-    // Ã¢â€â‚¬Ã¢â€â‚¬ SPL token path (USDC / PYUSD) Ã¢â€â‚¬Ã¢â€â‚¬
+    // ── SPL token path (USDC / PYUSD) ──
     let rawUnits;
     try { rawUnits = parseSplUnits(amt, SPL_TOKENS[currentToken].decimals); } catch (e) { sendErr(e.message); return; }
 
@@ -1435,13 +1443,117 @@ async function previewSend() {
       return;
     }
 
+    if (currentToken === 'USDC') {
+      // ── USDC: call backend estimate endpoint for accurate preview ──────────
+      showLoading('Checking recipient account…');
+      let est;
+      try {
+        const r = await fetch(`${API}/transaction/estimate-usdc`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            from_address: S.kp.publicKey.toString(),
+            to_address:   to,
+            amount_usdc:  amt,
+          }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!r.ok) throw new Error(`Estimate failed: ${r.status}`);
+        est = await r.json();
+      } catch (e) {
+        hideLoading();
+        sendErr(`Could not estimate fee: ${e.message}`);
+        return;
+      }
+      hideLoading();
+
+      if (!est.can_execute) {
+        sendErr(est.error_reason || 'Cannot complete this transaction.');
+        return;
+      }
+
+      // Update SOL balance display
+      S.solBal = parseFloat(est.sender_sol_balance) || S.solBal;
+
+      // Populate preview with accurate values
+      txt('preview-recipient', trunc(to, 8));
+      txt('preview-amount',    `${est.amount_usdc} USDC`);
+
+      // Build fee string showing wallet fee clearly
+      const feeUSDC = parseFloat(est.wallet_fee_usdc) || 0;
+      const feeSOL  = parseFloat(est.network_fee_sol) || 0;
+      if (feeUSDC > 0) {
+        txt('preview-fee', `${est.wallet_fee_usdc} USDC + ${feeSOL.toFixed(6)} SOL`);
+      } else {
+        txt('preview-fee', `~${feeSOL.toFixed(6)} SOL`);
+      }
+      txt('preview-fee-usd', '');
+      txt('preview-total',   `${est.total_usdc} USDC`);
+      txt('preview-balance', `${(available - parseFloat(est.total_usdc)).toFixed(2)} USDC`);
+
+      const usdEl = g('preview-usd');
+      if (usdEl) usdEl.textContent = `Recipient gets: ${est.recipient_receives} USDC`;
+
+      // Update preview coin icon
+      const coinEl = g('sp-coin-icon');
+      coinEl.className = `sp-coin ${tokenColorClass('USDC')}`;
+      coinEl.innerHTML = tokenIconHTML('USDC');
+
+      // Show ATA notice if needed
+      const warnEl = g('send-preview-warning');
+      if (est.recipient_needs_ata) {
+        warnEl.textContent = est.fee_payer_configured
+          ? `Recipient doesn't have a USDC account. We'll create it automatically (you only pay the ${feeSOL.toFixed(6)} SOL network fee).`
+          : `Recipient doesn't have a USDC account. Creating it requires ~${parseFloat(est.ata_creation_sol).toFixed(4)} SOL extra (one-time). Total SOL needed: ${parseFloat(est.total_sol_needed).toFixed(4)} SOL.`;
+        warnEl.style.color = est.fee_payer_configured ? 'var(--grn)' : 'var(--yellow, #f5a623)';
+        show(warnEl);
+      } else {
+        hide(warnEl);
+      }
+
+      g('btn-confirm-send').disabled = false;
+      S.pending = { to, rawUnits, token: 'USDC', amtFloat, est };
+      hide('send-step-form');
+      show('send-step-preview');
+      return;
+    }
+
+    // ── PYUSD and other SPL tokens ─────────────────────────────────────────
     // Check SOL balance for fee
     try {
       const b = await getBalance(S.kp.publicKey.toString());
       S.solBal = b.balance_sol || 0;
     } catch (_) {}
-    if (S.solBal < 0.000015) { // conservative: 5 lamports fee + possible ATA rent
-      sendErr(`Need at least 0.000015 SOL for network fee. Current: ${S.solBal.toFixed(6)} SOL`);
+
+    // Check if recipient needs token account
+    const mintAddr = SPL_TOKENS[currentToken][loadNet().network === 'mainnet-beta' ? 'mainnet' : 'devnet'];
+    const TOKEN_PROG_ID_CHECK = currentToken === 'PYUSD'
+      ? 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'
+      : 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+
+    let recipientNeedsATA = false;
+    try {
+      const existingATA = await findSourceTokenAccount(to, mintAddr, TOKEN_PROG_ID_CHECK);
+      const derivedATA  = getATA(new w3.PublicKey(to), mintAddr, TOKEN_PROG_ID_CHECK);
+      if (existingATA.toString() === derivedATA.toString()) {
+        const r = await fetch(`${API}/rpc`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getAccountInfo',
+            params:[derivedATA.toString(), { encoding:'base64' }] }),
+          signal: AbortSignal.timeout(8000),
+        });
+        const j = await r.json();
+        if (j?.result?.value == null) recipientNeedsATA = true;
+      }
+    } catch (_) {}
+
+    const minSOL = recipientNeedsATA ? 0.003 : 0.000010;
+    if (S.solBal < minSOL) {
+      if (recipientNeedsATA) {
+        sendErr(`Recipient has no ${currentToken} account yet. You need at least 0.003 SOL in your wallet to create one for them (you have ${S.solBal.toFixed(4)} SOL). Please add more SOL first.`);
+      } else {
+        sendErr(`Need at least 0.000010 SOL for network fee. Current: ${S.solBal.toFixed(6)} SOL`);
+      }
       return;
     }
 
@@ -1454,7 +1566,7 @@ async function previewSend() {
     txt('preview-balance',   `${Math.max(0, available - amtFloat).toFixed(2)} ${currentToken}`);
 
     const usdEl = g('preview-usd');
-    if (usdEl) usdEl.textContent = `Ã¢â€°Ë† $${amtFloat.toFixed(2)} USD`;
+    if (usdEl) usdEl.textContent = `≈ $${amtFloat.toFixed(2)} USD`;
 
     // Update preview coin icon
     const coinEl = g('sp-coin-icon');
@@ -1470,10 +1582,50 @@ async function previewSend() {
   }
 }
 
+/**
+ * Poll for transaction confirmation.
+ * Returns 'confirmed', 'failed', or 'timeout'.
+ * maxAttempts × 500ms delay = max wait time (60 × 500ms = 30s).
+ */
+async function waitForConfirmation(signature, maxAttempts = 60) {
+  for (let i = 0; i < maxAttempts; i++) {
+    await new Promise(r => setTimeout(r, 500));
+    try {
+      const r = await fetch(`${API}/rpc`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1,
+          method: 'getSignatureStatuses',
+          params: [[signature], { searchTransactionHistory: true }],
+        }),
+        signal: AbortSignal.timeout(10000),
+      });
+      if (!r.ok) continue;
+      const j = await r.json();
+      const status = j?.result?.value?.[0];
+      if (!status) continue; // not yet seen by the cluster
+
+      if (status.err !== null && status.err !== undefined) {
+        return 'failed'; // on-chain error — balance is unchanged
+      }
+      if (
+        status.confirmationStatus === 'confirmed' ||
+        status.confirmationStatus === 'finalized'
+      ) {
+        return 'confirmed';
+      }
+    } catch (_) {
+      // network blip — keep polling
+    }
+  }
+  return 'timeout';
+}
+
 async function execSend() {
   if (!S.kp || !S.pending) return;
   g('btn-confirm-send').disabled = true;
-  showLoading('Signing & broadcastingÃ¢â‚¬Â¦');
+  showLoading('Signing & broadcasting…');
   try {
     let b64, successMsg;
 
@@ -1482,31 +1634,95 @@ async function execSend() {
       successMsg = `${(Number(S.pending.lamps) / 1e9).toFixed(6)} SOL sent successfully`;
     } else {
       b64 = await signSplTransfer(S.pending.to, S.pending.token, S.pending.amtFloat);
-      successMsg = `${S.pending.amtFloat.toFixed(2)} ${S.pending.token} sent successfully`;
+      // For USDC with wallet fee, show the full breakdown
+      if (S.pending.token === 'USDC' && S.pending.est) {
+        const e = S.pending.est;
+        const fee = parseFloat(e.wallet_fee_usdc) || 0;
+        successMsg = fee > 0
+          ? `${e.amount_usdc} USDC sent · ${e.wallet_fee_usdc} USDC fee`
+          : `${S.pending.amtFloat.toFixed(2)} USDC sent successfully`;
+      } else {
+        successMsg = `${S.pending.amtFloat.toFixed(2)} ${S.pending.token} sent successfully`;
+      }
     }
 
     const res = await broadcastTx(b64);
 
-    txt('result-signature', res.signature);
-    txt('sr-sub-text', successMsg);
-    const lnk = g('result-explorer-link');
-    lnk.href = res.explorer_url || '#';
+    // ── Confirm on-chain before declaring success ──────────────────────────
+    // Poll the RPC for the actual transaction status so we never show "Sent!"
+    // for a transaction that failed or was dropped on-chain.
+    showLoading('Confirming on-chain… (up to 30s)');
+    const confirmed = await waitForConfirmation(res.signature, 60);
 
-    hide('send-result-error');
-    hide('send-step-preview');
-    show('send-step-result');
-    show('send-result-success');
-    toast('Sent! Ã°Å¸Å¡â‚¬', 'success', 5000);
-    setTimeout(refreshHome, 3000);
+    if (confirmed === 'confirmed') {
+      txt('result-signature', res.signature);
+      txt('sr-sub-text', successMsg);
+      const lnk = g('result-explorer-link');
+      lnk.href = res.explorer_url || '#';
+
+      hide('send-result-error');
+      hide('send-step-preview');
+      show('send-step-result');
+      show('send-result-success');
+      toast('Sent! 🚀', 'success', 5000);
+      setTimeout(refreshHome, 2000);
+
+    } else if (confirmed === 'failed') {
+      // Transaction was submitted but failed on-chain — balance is unchanged
+      // Check if it was an insufficient SOL for rent error
+      let failMsg = 'Transaction was rejected by the network. Your balance has not changed.';
+      try {
+        const r = await fetch(`${API}/rpc`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getTransaction',
+            params:[res.signature, { encoding:'jsonParsed', maxSupportedTransactionVersion:0 }] }),
+          signal: AbortSignal.timeout(8000),
+        });
+        const j = await r.json();
+        const logs = j?.result?.meta?.logMessages || [];
+        const hasRentErr = logs.some(l => l.includes('insufficient lamports') || l.includes('InsufficientFundsForRent'));
+        const hasNoAccount = logs.some(l => l.includes('invalid account data') || l.includes('AccountNotFound'));
+        if (hasRentErr) {
+          failMsg = `Not enough SOL to create recipient token account. Add at least 0.003 SOL to your wallet and try again.`;
+        } else if (hasNoAccount) {
+          failMsg = `Recipient has no ${S.pending?.token || 'token'} account. Add 0.003 SOL to your wallet to create one for them.`;
+        }
+      } catch (_) {}
+      txt('result-error-msg', failMsg);
+      const errLnk = g('result-error-explorer-link');
+      if (errLnk) { errLnk.href = res.explorer_url || '#'; show(errLnk); }
+      hide('send-result-success');
+      show('send-result-error');
+      hide('send-step-preview');
+      show('send-step-result');
+      toast('Transaction failed on-chain — balance unchanged', 'error', 6000);
+      setTimeout(refreshHome, 2000);
+
+    } else {
+      // Timeout — transaction may or may not have landed
+      txt('result-error-msg', 'Could not confirm the transaction in time. Check your transaction history or the explorer link to verify. Your balance may not have changed.');
+      txt('result-signature', res.signature);
+      const lnk = g('result-explorer-link');
+      lnk.href = res.explorer_url || '#';
+      const errLnk = g('result-error-explorer-link');
+      if (errLnk) { errLnk.href = res.explorer_url || '#'; show(errLnk); }
+      hide('send-result-success');
+      show('send-result-error');
+      hide('send-step-preview');
+      show('send-step-result');
+      toast('Confirmation timed out — check history', 'error', 7000);
+      setTimeout(refreshHome, 2000);
+    }
+
   } catch (e) {
     // Make error message as specific as possible
     let msg = e.message || 'Transaction failed.';
     if (msg.includes('simulation failed')) {
-      msg = 'Transaction simulation failed Ã¢â‚¬â€ check your token balance and try again.';
+      msg = 'Transaction simulation failed — check your token balance and try again.';
     } else if (msg.includes('insufficient')) {
       msg = 'Insufficient balance to complete this transaction.';
     } else if (msg.includes('blockhash')) {
-      msg = 'Transaction expired Ã¢â‚¬â€ please try again.';
+      msg = 'Transaction expired — please try again.';
     }
     txt('result-error-msg', msg);
     hide('send-result-success');
@@ -1514,6 +1730,7 @@ async function execSend() {
     hide('send-step-preview');
     show('send-step-result');
     toast('Transaction failed', 'error');
+    setTimeout(refreshHome, 2000);
   } finally {
     hideLoading();
     g('btn-confirm-send').disabled = false;
@@ -1523,9 +1740,9 @@ async function execSend() {
 
 const sendErr = m => { const e = g('send-form-error'); e.textContent = m; show(e); };
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 //  RECEIVE
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 function initReceive() {
   g('btn-copy-address').onclick =()=>S.kp&&copy(S.kp.publicKey.toString(),'Address copied');
   g('btn-share-address').onclick=async()=>{
@@ -1583,9 +1800,9 @@ async function refreshReceive() {
   hide(loading); show(canvas);
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 //  HISTORY
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 function initHistory() {
   g('btn-refresh-history').onclick=()=>loadHistory(0);
   g('btn-hist-prev').onclick=()=>{if(S.histPage>0)loadHistory(S.histPage-1);};
@@ -1595,7 +1812,7 @@ async function loadHistory(page) {
   if(!S.kp)return;
   S.histPage=page;
   const list=g('history-list');
-  list.innerHTML='<div class="tx-empty">LoadingÃ¢â‚¬Â¦</div>';
+  list.innerHTML='<div class="tx-empty">Loading…</div>';
   try{
     const d=await getTxHistory(S.kp.publicKey.toString(),HIST_LIMIT,page*HIST_LIMIT);
     if(!d.transactions?.length){
@@ -1611,9 +1828,9 @@ async function loadHistory(page) {
   }catch(e){list.innerHTML=`<div class="tx-empty">${esc(e.message)}</div>`;}
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 //  SETTINGS
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 function initSettings() {
   g('btn-export-address').onclick=()=>S.kp&&copy(S.kp.publicKey.toString(),'Address copied');
   $$('.np').forEach(b=>b.onclick=()=>{g('input-custom-rpc').value=b.dataset.rpc;applyNet(b.dataset.rpc,b.dataset.net);});
@@ -1629,8 +1846,8 @@ function initSettings() {
     if(!ok||!S.kp)return;
     txt('privkey-display',bs58.encode(S.kp.secretKey));show('privkey-display-area');hide('btn-show-privkey');
   };
-  g('btn-hide-privkey').onclick=()=>{txt('privkey-display','Ã¢â‚¬â€');hide('privkey-display-area');show('btn-show-privkey');};
-  g('btn-copy-privkey').onclick=()=>{const v=g('privkey-display').textContent;if(v&&v!=='Ã¢â‚¬â€')copy(v,'Key copied');};
+  g('btn-hide-privkey').onclick=()=>{txt('privkey-display','—');hide('privkey-display-area');show('btn-show-privkey');};
+  g('btn-copy-privkey').onclick=()=>{const v=g('privkey-display').textContent;if(v&&v!=='—')copy(v,'Key copied');};
   g('btn-remove-wallet').onclick=async()=>{
     const ok=await showAlert('Remove Wallet','Your SOL stays on-chain. Restore with your phrase.',{cancel:true});
     if(!ok)return;
@@ -1652,9 +1869,9 @@ function refreshSettings(){
   updateNetBadge();
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
-//  NAV Ã¢â‚¬â€ wire ALL data-screen + data-back
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
+//  NAV — wire ALL data-screen + data-back
+// ══════════════════════════════════════════
 function initNav() {
   $$('.bn[data-screen]').forEach(b=>b.onclick=()=>showScreen(b.dataset.screen));
   $$('[data-back]').forEach(b=>b.onclick=()=>showScreen(b.dataset.back));
@@ -1664,15 +1881,379 @@ function initNav() {
   });
 }
 
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
+//  SWAP (Jupiter API)
+// ══════════════════════════════════════════
+
+// Token mints used by Jupiter
+const SWAP_TOKENS = {
+  SOL:  { mint: 'So11111111111111111111111111111111111111112', decimals: 9,  symbol: 'SOL',  name: 'Solana'    },
+  USDC: { mint: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v', decimals: 6, symbol: 'USDC', name: 'USD Coin' },
+  PYUSD:{ mint: '2b1kV6DkPAnxd5ixfnxCpjxmKwqjjaYmCZfHsFu24GXo', decimals: 6, symbol: 'PYUSD',name: 'PayPal USD'},
+};
+
+const JUP_QUOTE_API = 'https://api.jup.ag/swap/v1/quote';      // Primary (works without key)
+const JUP_QUOTE_V2  = 'https://quote-api.jup.ag/v6/quote';    // Legacy fallback
+const JUP_SWAP_API  = 'https://api.jup.ag/swap/v1/swap';       // Primary swap endpoint
+const JUP_SWAP_V2   = 'https://quote-api.jup.ag/v6/swap';      // Legacy fallback
+
+// Swap state
+let swapState = {
+  fromToken: 'SOL',
+  toToken:   'USDC',
+  quote:     null,         // last Jupiter quote response
+  pickingFor: null,        // 'from' | 'to'
+  quoteTimer: null,
+};
+
+function initSwap() {
+  g('btn-swap-direction').onclick  = flipSwapTokens;
+  g('btn-swap-preview').onclick    = previewSwap;
+  g('btn-swap-back').onclick       = ()=>{ hide('swap-step-preview'); show('swap-step-form'); };
+  g('btn-swap-confirm').onclick    = execSwap;
+  g('btn-swap-another').onclick    = resetSwap;
+  g('btn-copy-swap-sig').onclick   = ()=>{ const v=g('swap-result-sig')?.textContent; if(v&&v!=='—') copy(v,'Copied'); };
+
+  g('swap-from-token-btn').onclick = ()=>openSwapPicker('from');
+  g('swap-to-token-btn').onclick   = ()=>openSwapPicker('to');
+
+  // Close picker when clicking outside
+  document.addEventListener('click', e=>{
+    if (!e.target.closest('#swap-token-picker') && !e.target.closest('.swap-token-btn')) {
+      hide('swap-token-picker');
+      swapState.pickingFor = null;
+    }
+  });
+
+  // Token picker items
+  $$('.swap-picker-item').forEach(btn=>btn.onclick=()=>{
+    const tok = btn.dataset.token;
+    if (swapState.pickingFor === 'from') {
+      if (tok === swapState.toToken) swapState.toToken = swapState.fromToken;
+      swapState.fromToken = tok;
+    } else {
+      if (tok === swapState.fromToken) swapState.fromToken = swapState.toToken;
+      swapState.toToken = tok;
+    }
+    hide('swap-token-picker');
+    swapState.pickingFor = null;
+    updateSwapUI();
+    fetchSwapQuote();
+  });
+
+  // Live quote on amount change
+  g('swap-from-amount').addEventListener('input', ()=>{
+    clearTimeout(swapState.quoteTimer);
+    swapState.quoteTimer = setTimeout(fetchSwapQuote, 600);
+    updateSwapFromUsd();
+  });
+
+  updateSwapUI();
+}
+
+function openSwapPicker(side) {
+  swapState.pickingFor = side;
+  show('swap-token-picker');
+}
+
+function flipSwapTokens() {
+  [swapState.fromToken, swapState.toToken] = [swapState.toToken, swapState.fromToken];
+  g('swap-from-amount').value = '';
+  g('swap-to-amount').value   = '';
+  swapState.quote = null;
+  hide('swap-quote-info');
+  updateSwapUI();
+}
+
+function updateSwapUI() {
+  const from = SWAP_TOKENS[swapState.fromToken];
+  const to   = SWAP_TOKENS[swapState.toToken];
+  txt('swap-from-token-label', from.symbol);
+  txt('swap-to-token-label',   to.symbol);
+
+  // Update available balances
+  const fromBal = getSwapBalance(swapState.fromToken);
+  const toBal   = getSwapBalance(swapState.toToken);
+  txt('swap-from-bal', fromBal !== null ? `Balance: ${fromBal.toFixed(fromBal < 1 ? 6 : 2)}` : '');
+  txt('swap-to-bal',   toBal   !== null ? `Balance: ${toBal.toFixed(toBal   < 1 ? 6 : 2)}`   : '');
+}
+
+function getSwapBalance(symbol) {
+  if (!S.kp) return null;
+  if (symbol === 'SOL')  return S.solBal;
+  return tokenBals[symbol] ?? 0;
+}
+
+function updateSwapFromUsd() {
+  const amt = parseFloat(g('swap-from-amount').value);
+  const usdEl = g('swap-from-usd');
+  if (!usdEl) return;
+  if (!isNaN(amt) && amt > 0) {
+    if (swapState.fromToken === 'SOL' && S.price) {
+      usdEl.textContent = `≈ $${(amt * S.price).toFixed(2)}`;
+    } else if (swapState.fromToken !== 'SOL') {
+      usdEl.textContent = `≈ $${amt.toFixed(2)}`;
+    } else {
+      usdEl.textContent = '';
+    }
+  } else {
+    usdEl.textContent = '';
+  }
+}
+
+async function fetchSwapQuote() {
+  const amtStr = g('swap-from-amount').value.trim();
+  const amt    = parseFloat(amtStr);
+  const btn    = g('btn-swap-preview');
+
+  if (!amtStr || isNaN(amt) || amt <= 0) {
+    g('swap-to-amount').value = '';
+    hide('swap-quote-info');
+    btn.disabled = true;
+    txt('btn-swap-preview', 'Get Quote');
+    return;
+  }
+
+  const from = SWAP_TOKENS[swapState.fromToken];
+  const to   = SWAP_TOKENS[swapState.toToken];
+  const inputUnits = Math.round(amt * Math.pow(10, from.decimals));
+
+  btn.disabled = true;
+  txt('btn-swap-preview', 'Fetching quote…');
+  hide('swap-quote-info');
+  hide('swap-error');
+
+  // Update USD display for input using market price
+  const fromUsdEl = g('swap-from-usd');
+  if (fromUsdEl && S.price) {
+    if (from.symbol === 'SOL') fromUsdEl.textContent = `≈ $${(amt * S.price).toFixed(2)}`;
+    else fromUsdEl.textContent = `≈ $${amt.toFixed(2)}`;
+  }
+
+  try {
+    const params = new URLSearchParams({
+      inputMint:    from.mint,
+      outputMint:   to.mint,
+      amount:       String(inputUnits),
+      slippageBps:  '50',
+    });
+
+    // Try legacy endpoint first (no key required), then new endpoint
+    let quote = null;
+    let lastError = '';
+
+    for (const baseUrl of [JUP_QUOTE_API, JUP_QUOTE_V2]) {
+      try {
+        const r = await fetch(`${baseUrl}?${params}`, {
+          signal: AbortSignal.timeout(10000),
+          headers: baseUrl === JUP_QUOTE_V2 ? { 'Content-Type': 'application/json' } : {},
+        });
+        if (!r.ok) { lastError = `${r.status}`; continue; }
+        const data = await r.json();
+        if (data.error) { lastError = data.error; continue; }
+        if (data.outAmount) { quote = data; break; }
+      } catch (e) { lastError = e.message; }
+    }
+
+    if (!quote) throw new Error(`Could not get quote: ${lastError}`);
+
+    swapState.quote = quote;
+
+    const outUnits = parseInt(quote.outAmount);
+    const outAmt   = outUnits / Math.pow(10, to.decimals);
+    const inAmt    = inputUnits / Math.pow(10, from.decimals);
+
+    g('swap-to-amount').value = outAmt.toFixed(Math.min(to.decimals, 6));
+
+    // USD estimate for output
+    const outUsdEl = g('swap-to-usd');
+    if (outUsdEl && S.price) {
+      if (to.symbol === 'SOL') outUsdEl.textContent = `≈ $${(outAmt * S.price).toFixed(2)}`;
+      else outUsdEl.textContent = `≈ $${outAmt.toFixed(2)}`;
+    }
+
+    // Rate display
+    const rate    = outAmt / inAmt;
+    const rateStr = `1 ${from.symbol} ≈ ${rate < 1 ? rate.toFixed(6) : rate.toFixed(4)} ${to.symbol}`;
+    const impact  = parseFloat(quote.priceImpactPct) || 0;
+    const impactColor = impact > 1 ? 'var(--red)' : impact > 0.3 ? '#f5a623' : 'var(--grn)';
+
+    txt('sq-rate',   rateStr);
+    txt('sq-impact', `${impact.toFixed(3)}%`);
+    const impEl = g('sq-impact'); if (impEl) impEl.style.color = impactColor;
+    txt('sq-route',  `Jupiter (${quote.routePlan?.length || 1} hop${(quote.routePlan?.length || 1) > 1 ? 's' : ''})`);
+
+    show('swap-quote-info');
+    btn.disabled = false;
+    txt('btn-swap-preview', 'Review Swap');
+
+  } catch (e) {
+    swapState.quote = null;
+    g('swap-to-amount').value = '';
+    const swapErr = g('swap-error');
+    if (swapErr) {
+      swapErr.textContent = e.message.includes('429')
+        ? 'Rate limited — wait a moment and try again'
+        : `Quote failed: ${e.message}`;
+      show(swapErr);
+    }
+    btn.disabled = true;
+    txt('btn-swap-preview', 'Get Quote');
+  }
+}
+
+function previewSwap() {
+  if (!swapState.quote || !S.kp) return;
+
+  const from    = SWAP_TOKENS[swapState.fromToken];
+  const to      = SWAP_TOKENS[swapState.toToken];
+  const inAmt   = parseInt(swapState.quote.inAmount) / Math.pow(10, from.decimals);
+  const outAmt  = parseInt(swapState.quote.outAmount) / Math.pow(10, to.decimals);
+  const minOut  = parseInt(swapState.quote.otherAmountThreshold) / Math.pow(10, to.decimals);
+  const impact  = parseFloat(swapState.quote.priceImpactPct) || 0;
+  const rate    = outAmt / inAmt;
+
+  txt('swap-preview-from',   `${inAmt.toFixed(6).replace(/\.?0+$/,'')} ${from.symbol}`);
+  txt('swap-preview-to',     `${outAmt.toFixed(6).replace(/\.?0+$/,'')} ${to.symbol}`);
+  txt('swap-preview-rate',   `1 ${from.symbol} ≈ ${rate.toFixed(4)} ${to.symbol}`);
+  txt('swap-preview-impact', `${impact.toFixed(3)}%`);
+  txt('swap-preview-min',    `${minOut.toFixed(6).replace(/\.?0+$/,'')} ${to.symbol}`);
+
+  hide('swap-step-form');
+  show('swap-step-preview');
+}
+
+async function execSwap() {
+  if (!swapState.quote || !S.kp) return;
+  g('btn-swap-confirm').disabled = true;
+  showLoading('Building swap transaction…');
+
+  try {
+    // 1. Get the swap transaction from Jupiter (try both endpoints)
+    let swapData = null;
+    let swapError = '';
+
+    for (const swapUrl of [JUP_SWAP_API, JUP_SWAP_V2]) {
+      try {
+        const swapResp = await fetch(swapUrl, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            quoteResponse:           swapState.quote,
+            userPublicKey:           S.kp.publicKey.toString(),
+            wrapAndUnwrapSol:        true,
+            dynamicComputeUnitLimit: true,
+            prioritizationFeeLamports: 'auto',
+          }),
+          signal: AbortSignal.timeout(20000),
+        });
+        if (!swapResp.ok) { swapError = `${swapUrl} ${swapResp.status}`; continue; }
+        const data = await swapResp.json();
+        if (data.error) { swapError = data.error; continue; }
+        if (data.swapTransaction) { swapData = data; break; }
+      } catch (e) { swapError = e.message; }
+    }
+
+    if (!swapData?.swapTransaction) throw new Error(swapError || 'No transaction returned from Jupiter');
+
+    showLoading('Signing & sending…');
+
+    // 2. Deserialize, sign, reserialize
+    const txBytes = Uint8Array.from(atob(swapData.swapTransaction), c => c.charCodeAt(0));
+
+    // Jupiter returns a VersionedTransaction — use web3.js VersionedTransaction if available
+    let signedB64;
+    try {
+      const vTx = w3.VersionedTransaction.deserialize(txBytes);
+      vTx.sign([S.kp]);
+      signedB64 = btoa(String.fromCharCode(...vTx.serialize()));
+    } catch (_) {
+      // Fallback to legacy Transaction
+      const tx = w3.Transaction.from(txBytes);
+      tx.partialSign(S.kp);
+      signedB64 = btoa(String.fromCharCode(...tx.serialize({ requireAllSignatures: false })));
+    }
+
+    // 3. Broadcast via backend
+    const broadcastResult = await broadcastTx(signedB64);
+
+    // 4. Confirm on-chain
+    showLoading('Confirming swap…');
+    const confirmed = await waitForConfirmation(broadcastResult.signature, 90);
+
+    hide('swap-step-preview');
+    show('swap-step-result');
+
+    if (confirmed === 'confirmed') {
+      const from   = SWAP_TOKENS[swapState.fromToken];
+      const to     = SWAP_TOKENS[swapState.toToken];
+      const inAmt  = parseInt(swapState.quote.inAmount)  / Math.pow(10, from.decimals);
+      const outAmt = parseInt(swapState.quote.outAmount) / Math.pow(10, to.decimals);
+      txt('swap-result-msg', `${inAmt.toFixed(6).replace(/\.?0+$/,'')} ${from.symbol} → ${outAmt.toFixed(6).replace(/\.?0+$/,'')} ${to.symbol}`);
+      txt('swap-result-sig', broadcastResult.signature);
+      const lnk = g('swap-explorer-link');
+      if (lnk) lnk.href = broadcastResult.explorer_url || `https://solscan.io/tx/${broadcastResult.signature}`;
+      hide('swap-result-error'); show('swap-result-success');
+      toast('Swap complete! 🔄', 'success', 5000);
+      setTimeout(refreshHome, 2000);
+
+    } else {
+      const msg = confirmed === 'failed'
+        ? 'Swap was rejected by the network. Your balance has not changed.'
+        : 'Could not confirm the swap in time. Check your transaction history.';
+      txt('swap-result-error-msg', msg);
+      hide('swap-result-success'); show('swap-result-error');
+      toast(confirmed === 'failed' ? 'Swap failed' : 'Confirmation timeout', 'error', 6000);
+    }
+
+  } catch (e) {
+    hide('swap-step-preview');
+    show('swap-step-result');
+    txt('swap-result-error-msg', e.message || 'Swap failed.');
+    hide('swap-result-success'); show('swap-result-error');
+    toast('Swap failed', 'error');
+  } finally {
+    hideLoading();
+    g('btn-swap-confirm').disabled = false;
+  }
+}
+
+function resetSwap() {
+  swapState.quote      = null;
+  swapState.pickingFor = null;
+  clearTimeout(swapState.quoteTimer);
+
+  g('swap-from-amount').value = '';
+  g('swap-to-amount').value   = '';
+  g('swap-from-usd').textContent = '';
+  g('swap-to-usd').textContent   = '';
+
+  hide('swap-quote-info');
+  hide('swap-error');
+  hide('swap-step-preview');
+  hide('swap-step-result');
+  hide('swap-result-success');
+  hide('swap-result-error');
+  hide('swap-token-picker');
+  show('swap-step-form');
+
+  g('btn-swap-preview').disabled = true;
+  txt('btn-swap-preview', 'Get Quote');
+
+  // Fetch fresh market data so USD estimates work
+  fetchMarketData().catch(()=>{});
+  updateSwapUI();
+}
+
+// ══════════════════════════════════════════
 //  BOOT
-// Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â
+// ══════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', ()=>{
   if (!window.solanaWeb3) {
     document.body.innerHTML=`
       <div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#13131a;color:#f0f0f5;font-family:sans-serif;text-align:center;padding:2rem">
         <div>
-          <div style="font-size:3rem;margin-bottom:1rem;color:#14f195">Ã¢â€”Ë†</div>
+          <div style="font-size:3rem;margin-bottom:1rem;color:#14f195">◈</div>
           <h2 style="margin-bottom:.5rem">Vendor libraries missing</h2>
           <p style="color:#8888a8;margin:.75rem 0 1.5rem;font-size:.9rem">
             Run <code style="background:#1a1a24;padding:.2rem .5rem;border-radius:6px">frontend\\download-vendors.ps1</code>
@@ -1687,7 +2268,7 @@ document.addEventListener('DOMContentLoaded', ()=>{
   initNav();
   initOnboarding(); initCreate(); initImport();
   initHome(); initMarkets(); initSend();
-  initReceive(); initHistory(); initSettings();
+  initReceive(); initHistory(); initSettings(); initSwap();
   updateNetBadge();
 
   const existing = loadKp();
@@ -1696,4 +2277,10 @@ document.addEventListener('DOMContentLoaded', ()=>{
 
   // Warm up the Render backend in the background so it's ready when needed
   fetch(`${API}/health`, { signal: AbortSignal.timeout(55000) }).catch(() => {});
+
+  // Load USDC fee config from backend
+  fetch(`${API}/transaction/usdc-fee`, { signal: AbortSignal.timeout(10000) })
+    .then(r => r.ok ? r.json() : null)
+    .then(d => { if (d?.fee_usdc_units !== undefined) S.usdcFee = d; })
+    .catch(() => {});
 });
