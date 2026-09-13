@@ -2087,6 +2087,37 @@ async function fetchSwapQuote() {
     btn.disabled = false;
     txt('btn-swap-preview', 'Review Swap');
 
+    // Check if output token ATA exists — show rent warning if needed
+    swapState.toTokenNeedsATA = false;
+    if (to.symbol !== 'SOL' && S.kp) {
+      try {
+        const r = await fetch(`${API}/rpc`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ jsonrpc:'2.0', id:99,
+            method:'getTokenAccountsByOwner',
+            params:[S.kp.publicKey.toString(), { mint: to.mint }, { encoding:'base64' }] }),
+          signal: AbortSignal.timeout(6000),
+        });
+        const j = await r.json();
+        swapState.toTokenNeedsATA = (j?.result?.value?.length || 0) === 0;
+      } catch (_) {}
+
+      // Show or hide inline ATA notice below quote card
+      let notice = g('swap-ata-notice');
+      if (!notice) {
+        notice = document.createElement('div');
+        notice.id = 'swap-ata-notice';
+        notice.style.cssText = 'font-size:.73rem;color:#f5a623;background:rgba(245,166,35,.08);border-radius:8px;padding:.45rem .65rem;margin-top:.5rem';
+        const qi = g('swap-quote-info');
+        if (qi && qi.parentNode) qi.parentNode.insertBefore(notice, qi.nextSibling);
+      }
+      if (swapState.toTokenNeedsATA) {
+        notice.style.display = 'block';
+        notice.textContent = `⚠️ First-time ${to.symbol} swap: Solana requires ~0.002 SOL to create your ${to.symbol} account (one-time refundable deposit). This is NOT a gas fee — it comes back when you close the account.`;
+      } else {
+        notice.style.display = 'none';
+      }
+    }
   } catch (e) {
     swapState.quote = null;
     g('swap-to-amount').value = '';
@@ -2118,6 +2149,27 @@ function previewSwap() {
   txt('swap-preview-rate',   `1 ${from.symbol} ≈ ${rate.toFixed(4)} ${to.symbol}`);
   txt('swap-preview-impact', `${impact.toFixed(3)}%`);
   txt('swap-preview-min',    `${minOut.toFixed(6).replace(/\.?0+$/,'')} ${to.symbol}`);
+
+  // Show network fee — Jupiter sets compute budget so it's slightly above base
+  txt('swap-preview-fee', '~0.000005–0.001 SOL (network only)');
+
+  // Rent warning: if swapping TO a token and the output ATA doesn't exist yet
+  const swapWarn = g('swap-preview-warn') || (() => {
+    const el = document.createElement('p');
+    el.id = 'swap-preview-warn';
+    el.style.cssText = 'font-size:.78rem;padding:.6rem .8rem;border-radius:10px;margin:.5rem 0;display:none';
+    g('swap-step-preview')?.querySelector('.sp-breakdown')?.after(el);
+    return el;
+  })();
+
+  if (swapState.toTokenNeedsATA) {
+    swapWarn.style.display = 'block';
+    swapWarn.style.background = 'rgba(245,166,35,.08)';
+    swapWarn.style.color = '#f5a623';
+    swapWarn.textContent = `⚠️ Your ${to.symbol} account doesn't exist yet. Solana will charge ~0.002 SOL (one-time rent deposit) to create it. This is returned if you close the account later.`;
+  } else {
+    swapWarn.style.display = 'none';
+  }
 
   hide('swap-step-form');
   show('swap-step-preview');
