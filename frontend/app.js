@@ -923,6 +923,18 @@ async function loadSplBalances(walletPubkey) {
         chg.style.color  = 'var(--t3)';
         chg.style.fontSize = '.66rem';
       }
+
+      // Show "Recover rent" button only when balance is zero and account exists
+      const closeBtn = g(`btn-close-${key}`);
+      if (closeBtn) {
+        // Account exists with 0 balance = rent is locked, user can recover it
+        const accountExists = accounts.some(a => a.account?.data?.parsed?.info?.mint === mint);
+        if (accountExists && ui === 0) {
+          show(closeBtn);
+        } else {
+          hide(closeBtn);
+        }
+      }
     }
 
     // Refresh total balance to include token values
@@ -1018,6 +1030,92 @@ function initHome() {
   g('btn-copy-addr-home').onclick   = ()=>S.kp&&copy(S.kp.publicKey.toString(),'Address copied');
   g('btn-copy-act').onclick         = ()=>S.kp&&copy(S.kp.publicKey.toString(),'Address copied');
   g('change-pill').onclick          = refreshHome;
+
+  // Close token account buttons (recover rent)
+  ['usdc','pyusd'].forEach(key => {
+    const btn = g(`btn-close-${key}`);
+    if (btn) btn.onclick = () => closeTokenAccount(key.toUpperCase());
+  });
+}
+
+/**
+ * Close a zero-balance SPL token account and recover the ~0.002 SOL rent deposit.
+ * Uses SPL Token CloseAccount instruction (discriminator = 9).
+ */
+async function closeTokenAccount(symbol) {
+  if (!S.kp) return;
+
+  const confirmed = await showAlert(
+    `Recover Rent — ${symbol}`,
+    `This will close your ${symbol} account and return ~0.002 SOL to your wallet.\n\nYou must have 0 ${symbol} balance to close it. Continue?`,
+    { cancel: true }
+  );
+  if (!confirmed) return;
+
+  showLoading(`Closing ${symbol} account…`);
+  try {
+    const IS_T22    = symbol === 'PYUSD';
+    const TOKEN_PROG_ID = IS_T22
+      ? 'TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb'
+      : 'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA';
+    const TOKEN_PROG = new w3.PublicKey(TOKEN_PROG_ID);
+    const mintAddr  = getSplMint(symbol);
+    if (!mintAddr) throw new Error('Unknown token');
+
+    // Find the actual token account address
+    const ataKey = await findSourceTokenAccount(
+      S.kp.publicKey.toString(), mintAddr, TOKEN_PROG_ID
+    );
+
+    // Verify balance is 0 before closing
+    const balResp = await fetch(`${API}/rpc`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ jsonrpc:'2.0', id:1, method:'getTokenAccountBalance',
+        params:[ataKey.toString()] }),
+      signal: AbortSignal.timeout(8000),
+    });
+    const balJson = await balResp.json();
+    const balance = parseInt(balJson?.result?.value?.amount || '0');
+    if (balance > 0) {
+      throw new Error(`Cannot close — account still has ${balJson.result.value.uiAmountString} ${symbol}. Send or swap it first.`);
+    }
+
+    // Build CloseAccount instruction (discriminator = 9)
+    // Accounts: [account_to_close, destination_for_rent, account_owner]
+    const { blockhash, lastValidBlockHeight } = await fetchLatestBlockhash();
+    const tx = new w3.Transaction();
+    tx.recentBlockhash      = blockhash;
+    tx.feePayer             = S.kp.publicKey;
+    tx.lastValidBlockHeight = lastValidBlockHeight;
+
+    tx.add(new w3.TransactionInstruction({
+      programId: TOKEN_PROG,
+      keys: [
+        { pubkey: ataKey,            isSigner: false, isWritable: true  }, // account to close
+        { pubkey: S.kp.publicKey,    isSigner: false, isWritable: true  }, // destination (receives SOL)
+        { pubkey: S.kp.publicKey,    isSigner: true,  isWritable: false }, // owner/authority
+      ],
+      data: new Uint8Array([9]), // 9 = CloseAccount
+    }));
+
+    tx.sign(S.kp);
+    const b64 = btoa(String.fromCharCode(...tx.serialize()));
+    const res = await broadcastTx(b64);
+
+    showLoading('Confirming…');
+    const status = await waitForConfirmation(res.signature, 60);
+
+    hideLoading();
+    if (status === 'confirmed') {
+      toast(`✅ ${symbol} account closed — ~0.002 SOL recovered!`, 'success', 5000);
+      setTimeout(refreshHome, 1500);
+    } else {
+      toast(`Close ${status === 'failed' ? 'failed' : 'timed out'} — check history`, 'error', 5000);
+    }
+  } catch (e) {
+    hideLoading();
+    toast(`Error: ${e.message}`, 'error', 6000);
+  }
 }
 
 async function refreshHome() {

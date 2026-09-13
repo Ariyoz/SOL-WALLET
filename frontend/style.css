@@ -768,3 +768,7 @@ img,svg{max-width:100%;height:auto}
 .swap-note{font-size:.72rem;color:var(--t3);text-align:center;margin:.5rem 0 .75rem}
 .a-swap{background:linear-gradient(135deg,rgba(20,241,149,.15),rgba(20,241,149,.05))!important}
 .a-swap svg{stroke:var(--grn)!important;fill:none}
+
+/* ── Close Token Account (Recover Rent) ── */
+.ar-close-btn{display:block;font-size:.65rem;color:var(--grn);background:rgba(20,241,149,.08);border:1px solid rgba(20,241,149,.2);border-radius:6px;padding:.2rem .5rem;cursor:pointer;margin-top:.25rem;white-space:nowrap;transition:background .15s}
+.ar-close-btn:hover{background:rgba(20,241,149,.18)}
